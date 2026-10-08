@@ -7,10 +7,13 @@ struct ImmersiveView: View {
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openWindow) private var openWindow
     @State private var controller = CellSceneController()
+    @State private var handMenu = HandMenuController()
 
     var body: some View {
         RealityView { content, _ in
             model.resetProgress()
+            content.add(handMenu.buttonAnchor)
+            content.add(handMenu.panelAnchor)
             await controller.load(into: content, model: model)
         } update: { _, attachments in
             if model.sceneReady {
@@ -30,6 +33,13 @@ struct ImmersiveView: View {
                 }
                 controller.applyState()
             }
+            if let palm = attachments.entity(for: "palm") {
+                handMenu.mountButton(palm)
+            }
+            if let debug = attachments.entity(for: "debug") {
+                handMenu.mountPanel(debug)
+            }
+            handMenu.applyState(model: model)
         } attachments: {
             Attachment(id: "intro") {
                 IntroCard()
@@ -38,7 +48,20 @@ struct ImmersiveView: View {
                 HUDView(
                     model: model,
                     onReset: { controller.reset() },
+                    onDebug: { handMenu.togglePanel(model: model) },
                     onExit: { leave() }
+                )
+            }
+            Attachment(id: "palm") {
+                PalmButton(isOpen: model.showDebug) {
+                    handMenu.togglePanel(model: model)
+                }
+            }
+            Attachment(id: "debug") {
+                DebugPanel(
+                    model: model,
+                    onScale: { controller.setCellScale($0) },
+                    onClose: { model.showDebug = false }
                 )
             }
             ForEach(OrganelleKind.allCases) { kind in
@@ -79,6 +102,9 @@ struct ImmersiveView: View {
                     controller.magnifyEnded()
                 }
         )
+        .task {
+            await handMenu.run(model: model)
+        }
         .onChange(of: model.wantsFullImmersion) { _, wantsFull in
             if wantsFull {
                 immersionStyle = .full

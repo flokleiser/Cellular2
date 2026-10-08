@@ -11,8 +11,8 @@ Copy a fresh `Package.realitycomposerpro` from a new visionOS app template into 
     python3 Tools/normalize_usd.py path/to/*.usdc --out Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.rkassets
 
 ## Where to tweak
-`OrganelleCatalog.swift`: lesson order, texts, assembled position (`slot`, in model units from the cell centre), size (`fit`), scatter position, protein colour and destination.
-`CellSceneController.swift`: cell size (`cellDiameter`), cell scale limits, where the cell sits (`cellHome`), when the sky fades in and full immersion starts (`setCellScale`).
+`OrganelleCatalog.swift`: lesson order, texts, assembled position (`slot`, in model units from the cell centre), size (`fit`), place on the scatter ring (`scatterAngle`, degrees, 90 = top), protein colour and destination.
+`CellSceneController.swift`: cell size (`cellDiameter`), cell scale limits, where the cell sits (`cellHome`), scatter ring distance (`scatterGap`), banner placement (`layoutAroundCell`), when the sky fades in and full immersion starts (`setCellScale`).
 
 ## Known limits
 visionOS never tells an app where the user is looking, so the gaze highlight is the system hover effect and the info buttons are always visible next to unplaced organelles.

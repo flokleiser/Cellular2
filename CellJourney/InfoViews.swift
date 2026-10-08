@@ -57,6 +57,7 @@ struct InfoPanel: View {
 struct HUDView: View {
     let model: AppModel
     let onReset: () -> Void
+    let onDebug: () -> Void
     let onExit: () -> Void
 
     private var headline: String {
@@ -105,6 +106,12 @@ struct HUDView: View {
                 }
                 Button(action: onExit) {
                     Label("Exit", systemImage: "xmark.circle")
+                }
+                if !model.handMenuAvailable {
+                    Button(action: onDebug) {
+                        Image(systemName: "ladybug")
+                    }
+                    .buttonBorderShape(.circle)
                 }
             }
         }

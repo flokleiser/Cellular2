@@ -24,19 +24,21 @@ private struct SeededGenerator: RandomNumberGenerator {
 final class CellSceneController {
     weak var model: AppModel?
 
-    private static let cellDiameter: Float = 0.8
-    private static let minScale: Float = 0.5
-    private static let maxScale: Float = 8
+    private static let cellDiameter: Float = 1.1
+    static let minScale: Float = 0.5
+    static let maxScale: Float = 8
 
-    private let cellHome = SIMD3<Float>(0, 1.35, -1.6)
+    private let cellHome = SIMD3<Float>(0, 1.35, -1.9)
     private let immersiveCenter = SIMD3<Float>(0, 1.45, 0)
+    private let immersedHUD = SIMD3<Float>(0, 1.05, -0.9)
+    private let scatterGap: Float = 0.32
 
     private let root = Entity()
     private let cellRoot = Entity()
     private let scatterRoot = Entity()
     private let introAnchor = Entity()
     private let membraneHolder = Entity()
-    private let hudAnchor = AnchorEntity(.head, trackingMode: .continuous)
+    private let hudHolder = Entity()
     private var sky: ModelEntity?
 
     private var organelles: [OrganelleKind: Entity] = [:]
@@ -45,12 +47,14 @@ final class CellSceneController {
     private var infoPanels: [OrganelleKind: Entity] = [:]
     private var hudEntity: Entity?
     private var introEntity: Entity?
-    private var proteins: [Entity] = []
+    private var protein: ModelEntity?
+    private var pulses: [Entity] = []
+    private var proteinJob: Task<Void, Never>?
     private var drags: [ObjectIdentifier: (position: SIMD3<Float>, pointer: SIMD3<Float>)] = [:]
     private var magnifyStart: Float?
     private var epoch = 0
     private var unit: Float = 0.1
-    private var cellRadius: Float = 0.4
+    private var cellRadius: Float = 0.55
     private var isLoaded = false
 
     func load(into content: RealityViewContent, model: AppModel) async {
@@ -59,10 +63,10 @@ final class CellSceneController {
         isLoaded = true
 
         content.add(root)
-        content.add(hudAnchor)
         root.addChild(cellRoot)
         root.addChild(scatterRoot)
         root.addChild(introAnchor)
+        root.addChild(hudHolder)
         cellRoot.position = cellHome
 
         if let membrane = await loadCentered(named: "Cell_Membrane") {
@@ -84,6 +88,7 @@ final class CellSceneController {
             let scale = unit * spec.fit
             let visual = Entity()
             visual.scale = SIMD3<Float>(repeating: scale)
+            visual.orientation = spec.orientation
             visual.addChild(loaded.entity)
             let wrapper = Entity()
             wrapper.name = spec.kind.rawValue
@@ -101,7 +106,7 @@ final class CellSceneController {
         root.addChild(skyEntity)
         sky = skyEntity
 
-        introAnchor.position = cellHome + SIMD3<Float>(0, cellRadius + 0.3, 0)
+        layoutAroundCell()
         setInteractive(membraneHolder, true, hover: true)
         model.sceneReady = true
     }
@@ -116,8 +121,8 @@ final class CellSceneController {
     func mountHUD(_ entity: Entity) {
         guard hudEntity == nil else { return }
         hudEntity = entity
-        entity.position = SIMD3<Float>(0, -0.32, -0.9)
-        hudAnchor.addChild(entity)
+        entity.components.set(BillboardComponent())
+        hudHolder.addChild(entity)
     }
 
     func mountInfoButton(_ entity: Entity, kind: OrganelleKind) {
@@ -176,7 +181,7 @@ final class CellSceneController {
               let kind = OrganelleKind(rawValue: value.entity.name),
               !model.placedKinds.contains(kind) else { return }
         let distance = simd_distance(value.entity.position(relativeTo: nil), cellRoot.position(relativeTo: nil))
-        guard distance < cellRadius * 0.85 else { return }
+        guard distance < cellRadius * model.cellScale * 0.85 else { return }
         guard let next = model.nextSpec else { return }
         if kind == next.kind {
             Task { await place(kind) }
@@ -202,10 +207,14 @@ final class CellSceneController {
         guard let model else { return }
         epoch += 1
         let token = epoch
-        for protein in proteins {
-            protein.removeFromParent()
+        proteinJob?.cancel()
+        proteinJob = nil
+        protein?.removeFromParent()
+        protein = nil
+        for pulse in pulses {
+            pulse.removeFromParent()
         }
-        proteins.removeAll()
+        pulses.removeAll()
         drags.removeAll()
         magnifyStart = nil
         model.placedKinds = []
@@ -253,7 +262,7 @@ final class CellSceneController {
             guard let entity = organelles[spec.kind] else { continue }
             entity.setParent(scatterRoot, preservingWorldTransform: true)
             entity.move(
-                to: Transform(scale: .one, rotation: spec.scatterTilt, translation: spec.scatterPosition),
+                to: scatterTransform(for: spec),
                 relativeTo: scatterRoot,
                 duration: duration,
                 timingFunction: .easeInOut
@@ -263,13 +272,20 @@ final class CellSceneController {
 
     private func sendHome(_ kind: OrganelleKind) {
         guard let entity = organelles[kind] else { return }
-        let spec = OrganelleCatalog.spec(for: kind)
         entity.move(
-            to: Transform(scale: .one, rotation: spec.scatterTilt, translation: spec.scatterPosition),
+            to: scatterTransform(for: OrganelleCatalog.spec(for: kind)),
             relativeTo: scatterRoot,
             duration: 0.7,
             timingFunction: .easeInOut
         )
+    }
+
+    /// A spot on a vertical ring around the cell, facing the user. `scatterRoot` follows the cell, so this is cell-relative.
+    private func scatterTransform(for spec: OrganelleSpec) -> Transform {
+        let angle = spec.scatterAngle * .pi / 180
+        let ring = cellRadius + scatterGap
+        let position = SIMD3<Float>(cos(angle) * ring, sin(angle) * ring, 0)
+        return Transform(scale: .one, rotation: spec.scatterTilt, translation: position)
     }
 
     private func place(_ kind: OrganelleKind) async {
@@ -289,15 +305,23 @@ final class CellSceneController {
         )
         try? await Task.sleep(for: .milliseconds(650))
         guard token == epoch else { return }
-        model.caption = spec.caption
-        await emitProtein(from: spec, token: token)
-        guard token == epoch else { return }
+        // One protein travels through the whole cell, so each step waits for the previous one to finish.
+        let previous = proteinJob
+        let job = Task {
+            await previous?.value
+            guard token == epoch else { return }
+            model.caption = spec.caption
+            await advanceProtein(for: spec, token: token)
+        }
+        proteinJob = job
+        await job.value
+        guard token == epoch, proteinJob == job else { return }
         if model.placedKinds.count == OrganelleCatalog.order.count {
             finishAssembly()
         }
     }
 
-    private func emitProtein(from spec: OrganelleSpec, token: Int) async {
+    private func advanceProtein(for spec: OrganelleSpec, token: Int) async {
         let start = spec.slot * unit
         let size = extents[spec.kind] ?? SIMD3<Float>(repeating: 0.2)
         let outward = simd_length(start) > 0.001 ? simd_normalize(start) : SIMD3<Float>(0, 1, 0)
@@ -308,37 +332,79 @@ final class CellSceneController {
             destination = OrganelleCatalog.spec(for: kind).slot * unit
         case .outsideCell:
             destination = outward * cellRadius * 1.6
+        case .energizeProtein:
+            await energizeProtein(from: surface, color: spec.proteinColor, token: token)
+            return
         }
         let middle = (surface + destination) / 2 + SIMD3<Float>(0, 0.08, 0)
 
-        let protein = makeProtein(color: spec.proteinColor)
-        protein.position = start
-        protein.scale = SIMD3<Float>(repeating: 0.05)
-        cellRoot.addChild(protein)
-        proteins.append(protein)
+        let ball: ModelEntity
+        if let protein {
+            ball = protein
+        } else {
+            ball = makeProtein(color: spec.proteinColor)
+            ball.position = start
+            ball.scale = SIMD3<Float>(repeating: 0.05)
+            cellRoot.addChild(ball)
+            protein = ball
+        }
+        Self.tint(ball, spec.proteinColor)
 
         let steps: [(Transform, TimeInterval, AnimationTimingFunction)] = [
             (Transform(scale: .one, translation: surface), 0.8, .easeOut),
             (Transform(scale: .one, translation: middle), 0.8, .easeIn),
             (Transform(scale: .one, translation: destination), 0.8, .easeOut),
             (Transform(scale: SIMD3<Float>(repeating: 2.2), translation: destination), 0.25, .easeOut),
-            (Transform(scale: SIMD3<Float>(repeating: 0.01), translation: destination), 0.2, .easeIn)
+            (Transform(scale: .one, translation: destination), 0.25, .easeIn)
         ]
+        await run(steps, on: ball, token: token)
+    }
+
+    /// A short-lived energy spark that flies to the protein and makes it pulse.
+    private func energizeProtein(from start: SIMD3<Float>, color: UIColor, token: Int) async {
+        guard let protein else { return }
+        let target = protein.position
+        let spark = makeProtein(color: color)
+        spark.position = start
+        spark.scale = SIMD3<Float>(repeating: 0.05)
+        cellRoot.addChild(spark)
+        pulses.append(spark)
+        let middle = (start + target) / 2 + SIMD3<Float>(0, 0.08, 0)
+        await run([
+            (Transform(scale: SIMD3<Float>(repeating: 0.7), translation: middle), 0.7, .easeOut),
+            (Transform(scale: SIMD3<Float>(repeating: 0.7), translation: target), 0.7, .easeIn),
+            (Transform(scale: SIMD3<Float>(repeating: 0.01), translation: target), 0.15, .easeIn)
+        ], on: spark, token: token)
+        spark.removeFromParent()
+        pulses.removeAll { $0 === spark }
+        guard token == epoch else { return }
+        await run([
+            (Transform(scale: SIMD3<Float>(repeating: 2.2), translation: target), 0.25, .easeOut),
+            (Transform(scale: .one, translation: target), 0.25, .easeIn)
+        ], on: protein, token: token)
+    }
+
+    private func run(_ steps: [(Transform, TimeInterval, AnimationTimingFunction)], on entity: Entity, token: Int) async {
         for (target, duration, timing) in steps {
-            protein.move(to: target, relativeTo: cellRoot, duration: duration, timingFunction: timing)
+            entity.move(to: target, relativeTo: cellRoot, duration: duration, timingFunction: timing)
             try? await Task.sleep(for: .milliseconds(Int(duration * 1000) + 50))
             guard token == epoch else { return }
         }
-        protein.removeFromParent()
-        proteins.removeAll { $0 === protein }
     }
 
-    private func makeProtein(color: UIColor) -> Entity {
+    private func makeProtein(color: UIColor) -> ModelEntity {
         let core = ModelEntity(mesh: .generateSphere(radius: 0.016), materials: [UnlitMaterial(color: color)])
         let halo = ModelEntity(mesh: .generateSphere(radius: 0.034), materials: [UnlitMaterial(color: color)])
         halo.components.set(OpacityComponent(opacity: 0.28))
         core.addChild(halo)
         return core
+    }
+
+    private static func tint(_ protein: ModelEntity, _ color: UIColor) {
+        protein.model?.materials = [UnlitMaterial(color: color)]
+        for case let halo as ModelEntity in protein.children {
+            halo.model?.materials = [UnlitMaterial(color: color)]
+        }
     }
 
     private func finishAssembly() {
@@ -352,13 +418,14 @@ final class CellSceneController {
         sky?.components.set(InputTargetComponent())
     }
 
-    private func setCellScale(_ requested: Float) {
+    func setCellScale(_ requested: Float) {
         guard let model else { return }
         let scale = min(max(requested, Self.minScale), Self.maxScale)
         model.cellScale = scale
         cellRoot.scale = SIMD3<Float>(repeating: scale)
         let travel = Self.smoothstep(1.5, 3.5, scale)
         cellRoot.position = cellHome + (immersiveCenter - cellHome) * travel
+        layoutAroundCell()
         let immersion = Self.smoothstep(3.0, 6.0, scale)
         model.immersion = immersion
         sky?.isEnabled = immersion > 0.001
@@ -368,6 +435,20 @@ final class CellSceneController {
         } else {
             model.wantsFullImmersion = immersion > 0.97
         }
+    }
+
+    /// Keeps the scattered organelles, the intro card and the banner attached to the cell as it grows.
+    private func layoutAroundCell() {
+        let scale = model?.cellScale ?? 1
+        let center = cellRoot.position
+        let radius = cellRadius * scale
+        scatterRoot.position = center
+        scatterRoot.scale = SIMD3<Float>(repeating: scale)
+        introAnchor.position = center + SIMD3<Float>(0, radius + 0.2, 0)
+        let below = center + SIMD3<Float>(0, -(radius + 0.15), 0.25)
+        var spot = below + (immersedHUD - below) * Self.smoothstep(1.5, 3.5, scale)
+        spot.y = max(spot.y, 0.6)
+        hudHolder.position = spot
     }
 
     private func animateCellScale(to target: Float, duration: Double, token: Int) async {

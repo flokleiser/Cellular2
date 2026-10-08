@@ -19,6 +19,8 @@ final class AppModel {
     var immersion: Float = 0
     var wantsFullImmersion = false
     var sceneReady = false
+    var showDebug = false
+    var handMenuAvailable = false
 
     @ObservationIgnored private var hintTask: Task<Void, Never>?
 
@@ -55,5 +57,6 @@ final class AppModel {
         immersion = 0
         wantsFullImmersion = false
         sceneReady = false
+        showDebug = false
     }
 }
