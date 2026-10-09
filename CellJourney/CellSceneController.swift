@@ -8,14 +8,14 @@ private struct SeededGenerator: RandomNumberGenerator {
     var state: UInt64
 
     init(seed: UInt64) {
-        state = seed &+ 0x9E3779B97F4A7C15
+        state = seed &+ 0x9E37_79B9_7F4A_7C15
     }
 
     mutating func next() -> UInt64 {
-        state &+= 0x9E3779B97F4A7C15
+        state &+= 0x9E37_79B9_7F4A_7C15
         var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
-        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
         return z ^ (z >> 31)
     }
 }
@@ -85,7 +85,8 @@ final class CellSceneController {
             Self.makeTransparent(visual)
             membraneHolder.name = "cell"
             membraneHolder.addChild(visual)
-            membraneHolder.components.set(CollisionComponent(shapes: [.generateSphere(radius: cellRadius)]))
+            membraneHolder.components.set(
+                CollisionComponent(shapes: [.generateSphere(radius: cellRadius)]))
             cellRoot.addChild(membraneHolder)
         }
 
@@ -96,9 +97,12 @@ final class CellSceneController {
             visual.scale = SIMD3<Float>(repeating: scale)
             visual.orientation = spec.orientation
             visual.addChild(loaded.entity)
+//            let transparencyComponent = OpacityComponent(opacity: 0.5)
+//            Self.makeGhostly(visual)
             let wrapper = Entity()
             wrapper.name = spec.kind.rawValue
             wrapper.addChild(visual)
+//            wrapper.components.set(transparencyComponent)
             let size = loaded.extents * scale
             extents[spec.kind] = size
             let grab = simd_max(size, SIMD3<Float>(repeating: 0.14))
@@ -142,12 +146,15 @@ final class CellSceneController {
 
     /// A spot just outside a scattered organelle in a room direction (right, up), expressed in the organelle's own
     /// tilted frame, so its info button and panel never end up behind it. Nudged towards the user so they stay in front.
-    private func scatteredOffset(for kind: OrganelleKind, toward direction: SIMD3<Float>, gap: Float) -> SIMD3<Float> {
+    private func scatteredOffset(
+        for kind: OrganelleKind, toward direction: SIMD3<Float>, gap: Float
+    ) -> SIMD3<Float> {
         let spec = OrganelleCatalog.spec(for: kind)
         let half = simd_max(extents[kind] ?? .zero, SIMD3<Float>(repeating: 0.14)) / 2
         let tilt = spec.scatterTilt
         let rotation = simd_matrix3x3(tilt * spec.orientation)
-        let reach = abs(simd_dot(rotation.columns.0, direction)) * half.x
+        let reach =
+            abs(simd_dot(rotation.columns.0, direction)) * half.x
             + abs(simd_dot(rotation.columns.1, direction)) * half.y
             + abs(simd_dot(rotation.columns.2, direction)) * half.z
         let world = direction * (reach + gap) + SIMD3<Float>(0, 0, 0.05)
@@ -176,9 +183,10 @@ final class CellSceneController {
             return
         }
         guard let model, model.phase == .scatter,
-              let kind = OrganelleKind(rawValue: value.entity.name),
-              !model.placedKinds.contains(kind),
-              let parent = value.entity.parent else { return }
+            let kind = OrganelleKind(rawValue: value.entity.name),
+            !model.placedKinds.contains(kind),
+            let parent = value.entity.parent
+        else { return }
         let entity = value.entity
         let key = ObjectIdentifier(entity)
         let pointer = value.convert(value.location3D, from: .local, to: parent)
@@ -194,9 +202,11 @@ final class CellSceneController {
         drags[ObjectIdentifier(value.entity)] = nil
         turnStart = nil
         guard let model, model.phase == .scatter,
-              let kind = OrganelleKind(rawValue: value.entity.name),
-              !model.placedKinds.contains(kind) else { return }
-        let distance = simd_distance(value.entity.position(relativeTo: nil), cellRoot.position(relativeTo: nil))
+            let kind = OrganelleKind(rawValue: value.entity.name),
+            !model.placedKinds.contains(kind)
+        else { return }
+        let distance = simd_distance(
+            value.entity.position(relativeTo: nil), cellRoot.position(relativeTo: nil))
         guard distance < cellRadius * model.cellScale * 0.85 else { return }
         guard let next = model.nextSpec else { return }
         if kind == next.kind {
@@ -232,8 +242,10 @@ final class CellSceneController {
         let delta = pointer - start.pointer
         // From inside the cell you grab the far wall, so the directions flip to keep it following your hand.
         let sign: Float = model.immersion > 0.5 ? -1 : 1
-        let spin = simd_quatf(angle: sign * delta.x * Self.turnPerMeter, axis: SIMD3<Float>(0, 1, 0))
-        let tip = simd_quatf(angle: -sign * delta.y * Self.turnPerMeter, axis: SIMD3<Float>(1, 0, 0))
+        let spin = simd_quatf(
+            angle: sign * delta.x * Self.turnPerMeter, axis: SIMD3<Float>(0, 1, 0))
+        let tip = simd_quatf(
+            angle: -sign * delta.y * Self.turnPerMeter, axis: SIMD3<Float>(1, 0, 0))
         cellRoot.orientation = simd_normalize(spin * tip * start.orientation)
     }
 
@@ -263,7 +275,8 @@ final class CellSceneController {
             setInteractive(entity, false, hover: false)
         }
         Task {
-            if model.cellScale != 1 || cellRoot.orientation != simd_quatf(ix: 0, iy: 0, iz: 0, r: 1) {
+            if model.cellScale != 1 || cellRoot.orientation != simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+            {
                 await animateCellHome(duration: 0.9, token: token)
             }
             guard token == epoch else { return }
@@ -398,18 +411,41 @@ final class CellSceneController {
             (Transform(scale: .one, translation: surface), 0.8, .easeOut),
             (Transform(scale: .one, translation: middle), 0.8, .easeIn),
             (Transform(scale: .one, translation: destination), 0.8, .easeOut),
-            (Transform(scale: SIMD3<Float>(repeating: 2.2), translation: destination), 0.25, .easeOut),
-            (Transform(scale: .one, translation: destination), 0.25, .easeIn)
+            (
+                Transform(scale: SIMD3<Float>(repeating: 2.2), translation: destination), 0.25,
+                .easeOut
+            ),
+            (Transform(scale: .one, translation: destination), 0.25, .easeIn),
         ]
         await run(steps, on: ball, token: token)
+        if case .outsideCell = spec.destination {
+            await fadeOutProtein(ball, token: token)
+        }
+    }
+
+    /// Once the protein has left the cell it fades away.
+    private func fadeOutProtein(_ ball: ModelEntity, token: Int) async {
+        let frames = 40
+        for frame in 1...frames {
+            guard token == epoch else { return }
+            ball.components.set(OpacityComponent(opacity: 1 - Float(frame) / Float(frames)))
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        guard token == epoch else { return }
+        ball.removeFromParent()
+        if protein === ball {
+            protein = nil
+        }
     }
 
     /// ATP sparks that burst from the mitochondrion and spread through the cell.
     private func spreadEnergy(from start: SIMD3<Float>, color: UIColor, token: Int) async {
         var sparks: [(entity: ModelEntity, target: SIMD3<Float>)] = []
         for _ in 0..<32 {
-            var direction = SIMD3<Float>(.random(in: -1...1), .random(in: -1...1), .random(in: -1...1))
-            direction = simd_length(direction) > 0.001 ? simd_normalize(direction) : SIMD3<Float>(0, 1, 0)
+            var direction = SIMD3<Float>(
+                .random(in: -1...1), .random(in: -1...1), .random(in: -1...1))
+            direction =
+                simd_length(direction) > 0.001 ? simd_normalize(direction) : SIMD3<Float>(0, 1, 0)
             let target = direction * cellRadius * Float.random(in: 0.3...0.9)
             let spark = makeProtein(color: color)
             spark.position = start
@@ -437,23 +473,32 @@ final class CellSceneController {
         pulses.removeAll { pulse in sparks.contains { $0.entity === pulse } }
         guard token == epoch, let protein else { return }
         let target = protein.position
-        await run([
-            (Transform(scale: SIMD3<Float>(repeating: 2.2), translation: target), 0.25, .easeOut),
-            (Transform(scale: .one, translation: target), 0.25, .easeIn)
-        ], on: protein, token: token)
+        await run(
+            [
+                (
+                    Transform(scale: SIMD3<Float>(repeating: 2.2), translation: target), 0.25,
+                    .easeOut
+                ),
+                (Transform(scale: .one, translation: target), 0.25, .easeIn),
+            ], on: protein, token: token)
     }
 
-    private func run(_ steps: [(Transform, TimeInterval, AnimationTimingFunction)], on entity: Entity, token: Int) async {
+    private func run(
+        _ steps: [(Transform, TimeInterval, AnimationTimingFunction)], on entity: Entity, token: Int
+    ) async {
         for (target, duration, timing) in steps {
-            entity.move(to: target, relativeTo: cellRoot, duration: duration, timingFunction: timing)
+            entity.move(
+                to: target, relativeTo: cellRoot, duration: duration, timingFunction: timing)
             try? await Task.sleep(for: .milliseconds(Int(duration * 1000) + 50))
             guard token == epoch else { return }
         }
     }
 
     private func makeProtein(color: UIColor) -> ModelEntity {
-        let core = ModelEntity(mesh: .generateSphere(radius: 0.016), materials: [UnlitMaterial(color: color)])
-        let halo = ModelEntity(mesh: .generateSphere(radius: 0.034), materials: [UnlitMaterial(color: color)])
+        let core = ModelEntity(
+            mesh: .generateSphere(radius: 0.016), materials: [UnlitMaterial(color: color)])
+        let halo = ModelEntity(
+            mesh: .generateSphere(radius: 0.034), materials: [UnlitMaterial(color: color)])
         halo.components.set(OpacityComponent(opacity: 0.28))
         core.addChild(halo)
         return core
@@ -562,7 +607,8 @@ final class CellSceneController {
         }
     }
 
-    private func loadCentered(named name: String) async -> (entity: Entity, extents: SIMD3<Float>)? {
+    private func loadCentered(named name: String) async -> (entity: Entity, extents: SIMD3<Float>)?
+    {
         do {
             let loaded = try await Entity(named: name, in: realityKitContentBundle)
             let holder = Entity()
@@ -594,10 +640,25 @@ final class CellSceneController {
         }
     }
 
+    /// Slightly see-through organelles. The depth pre-pass keeps each one from showing its own hidden parts through itself.
+    private static func makeGhostly(_ entity: Entity) {
+        entity.components.set(OpacityComponent(opacity: 0.75))
+        let group = ModelSortGroup(depthPass: .prePass)
+        func assign(_ entity: Entity) {
+            if entity.components.has(ModelComponent.self) {
+                entity.components.set(ModelSortGroupComponent(group: group, order: 0))
+            }
+            entity.children.forEach(assign)
+        }
+        assign(entity)
+    }
+
     private func makeSky() -> ModelEntity {
         var material = UnlitMaterial()
         if let image = Self.cytoplasmImage(),
-           let texture = try? TextureResource.generate(from: image, options: .init(semantic: .color)) {
+            let texture = try? TextureResource.generate(
+                from: image, options: .init(semantic: .color))
+        {
             material.color = .init(tint: .white, texture: .init(texture))
         } else {
             material.color = .init(tint: UIColor(red: 0.05, green: 0.2, blue: 0.3, alpha: 1))
@@ -619,13 +680,17 @@ final class CellSceneController {
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let image = renderer.image { context in
             let cg = context.cgContext
-            let colors = [
-                UIColor(red: 0.10, green: 0.42, blue: 0.55, alpha: 1).cgColor,
-                UIColor(red: 0.04, green: 0.16, blue: 0.30, alpha: 1).cgColor,
-                UIColor(red: 0.02, green: 0.07, blue: 0.16, alpha: 1).cgColor
-            ] as CFArray
-            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.5, 1]) {
-                cg.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+            let colors =
+                [
+                    UIColor(red: 0.10, green: 0.42, blue: 0.55, alpha: 1).cgColor,
+                    UIColor(red: 0.04, green: 0.16, blue: 0.30, alpha: 1).cgColor,
+                    UIColor(red: 0.02, green: 0.07, blue: 0.16, alpha: 1).cgColor,
+                ] as CFArray
+            if let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.5, 1])
+            {
+                cg.drawLinearGradient(
+                    gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
             }
             var generator = SeededGenerator(seed: 7)
             for _ in 0..<900 {
@@ -634,7 +699,8 @@ final class CellSceneController {
                 let y = CGFloat.random(in: 0...size.height, using: &generator)
                 let alpha = CGFloat.random(in: 0.03...0.12, using: &generator)
                 cg.setFillColor(UIColor(white: 1, alpha: alpha).cgColor)
-                cg.fillEllipse(in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
+                cg.fillEllipse(
+                    in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
             }
         }
         return image.cgImage

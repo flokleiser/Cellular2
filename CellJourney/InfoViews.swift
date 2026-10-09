@@ -50,7 +50,8 @@ struct JourneyPanel: View {
             return ""
         case .scatter:
             if let next = model.nextSpec {
-                return "Next, drag the \(next.shortName) into the cell"
+                let lead = model.placedKinds.isEmpty ? "First" : "Next"
+                return "\(lead), drag the \(next.shortName) into the cell"
             }
             return "Almost there"
         case .assembled:
