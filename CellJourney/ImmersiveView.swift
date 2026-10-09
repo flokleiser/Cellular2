@@ -17,11 +17,8 @@ struct ImmersiveView: View {
             await controller.load(into: content, model: model)
         } update: { _, attachments in
             if model.sceneReady {
-                if let intro = attachments.entity(for: "intro") {
-                    controller.mountIntro(intro)
-                }
-                if let hud = attachments.entity(for: "hud") {
-                    controller.mountHUD(hud)
+                if let panel = attachments.entity(for: "panel") {
+                    controller.mountPanel(panel)
                 }
                 for kind in OrganelleKind.allCases {
                     if let button = attachments.entity(for: "button-\(kind.rawValue)") {
@@ -41,11 +38,8 @@ struct ImmersiveView: View {
             }
             handMenu.applyState(model: model)
         } attachments: {
-            Attachment(id: "intro") {
-                IntroCard()
-            }
-            Attachment(id: "hud") {
-                HUDView(
+            Attachment(id: "panel") {
+                JourneyPanel(
                     model: model,
                     onReset: { controller.reset() },
                     onDebug: { handMenu.togglePanel(model: model) },
