@@ -34,6 +34,64 @@ struct InfoPanel: View {
     }
 }
 
+/// Sits over a scattered organelle. Apps never learn where the eyes are, so the panel is revealed by a system hover
+/// effect: looking at the organelle (or the panel itself) opens it, the info button pins it open.
+/// It covers the organelle, so dragging the organelle happens here too.
+struct LookTarget: View {
+    let spec: OrganelleSpec
+    let model: AppModel
+    /// Side of the target in meters.
+    let size: Float
+    let onDrag: (SIMD3<Float>) -> Void
+    let onDragEnded: () -> Void
+
+    @Environment(\.physicalMetrics) private var metrics
+    /// Room above the target for the panel, mirrored below so the target stays centred on the organelle.
+    private let reserve: CGFloat = 420
+    private let gap: CGFloat = 24
+
+    var body: some View {
+        let side = metrics.convert(CGFloat(size), from: .meters)
+        let pinned = model.openInfo.contains(spec.kind)
+        VStack(spacing: gap) {
+            InfoPanel(spec: spec)
+                .hoverEffect { effect, isActive, _ in
+                    effect.animation(.easeOut(duration: 0.25).delay(isActive ? 0.25 : 0.6)) {
+                        $0.opacity(isActive || pinned ? 1 : 0)
+                            .scaleEffect(isActive || pinned ? 1 : 0.92, anchor: .bottom)
+                    }
+                }
+                .frame(height: reserve, alignment: .bottom)
+            RoundedRectangle(cornerRadius: side / 4)
+                .fill(.white.opacity(0.12))
+                .hoverEffect { effect, isActive, _ in
+                    effect.opacity(isActive ? 1 : 0)
+                }
+                .frame(width: side, height: side)
+                .contentShape(.hoverEffect, .rect(cornerRadius: side / 4))
+                .contentShape(.rect(cornerRadius: side / 4))
+                .gesture(drag)
+            Color.clear
+                .frame(height: reserve)
+        }
+        .hoverEffectGroup()
+    }
+
+    private var drag: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .immersiveSpace)
+            .onChanged { value in
+                let moved = value.translation3D
+                // SwiftUI's y axis points down, RealityKit's up.
+                onDrag(SIMD3<Float>(
+                    Float(metrics.convert(moved.x, to: .meters)),
+                    -Float(metrics.convert(moved.y, to: .meters)),
+                    Float(metrics.convert(moved.z, to: .meters))
+                ))
+            }
+            .onEnded { _ in onDragEnded() }
+    }
+}
+
 /// One panel for the whole journey: the intro card above the cell morphs into the progress banner below it.
 struct JourneyPanel: View {
     let model: AppModel

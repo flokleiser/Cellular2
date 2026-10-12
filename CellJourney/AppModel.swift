@@ -13,7 +13,6 @@ final class AppModel {
     var phase: Phase = .intro
     var placedKinds: Set<OrganelleKind> = []
     var openInfo: Set<OrganelleKind> = []
-    var lookedAt: OrganelleKind?
     var hint: String?
     var caption: String?
     var cellScale: Float = 1
@@ -52,7 +51,6 @@ final class AppModel {
         phase = .intro
         placedKinds = []
         openInfo = []
-        lookedAt = nil
         hint = nil
         caption = nil
         cellScale = 1

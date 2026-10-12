@@ -14,7 +14,6 @@ struct ImmersiveView: View {
             model.resetProgress()
             content.add(handMenu.buttonAnchor)
             content.add(handMenu.panelAnchor)
-            controller.headTransform = { [handMenu] in handMenu.headTransform() }
             await controller.load(into: content, model: model)
         } update: { _, attachments in
             if model.sceneReady {
@@ -66,7 +65,13 @@ struct ImmersiveView: View {
             }
             ForEach(OrganelleKind.allCases) { kind in
                 Attachment(id: "panel-\(kind.rawValue)") {
-                    InfoPanel(spec: OrganelleCatalog.spec(for: kind))
+                    LookTarget(
+                        spec: OrganelleCatalog.spec(for: kind),
+                        model: model,
+                        size: controller.lookTargetSize(for: kind),
+                        onDrag: { controller.dragOrganelle(kind, by: $0) },
+                        onDragEnded: { controller.dragOrganelleEnded(kind) }
+                    )
                 }
             }
         }

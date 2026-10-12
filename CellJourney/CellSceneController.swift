@@ -23,19 +23,11 @@ private struct SeededGenerator: RandomNumberGenerator {
 @MainActor
 final class CellSceneController {
     weak var model: AppModel?
-    /// Where the user's head is, used to open an organelle's info panel when they look at it.
-    var headTransform: () -> simd_float4x4? = { nil }
 
     private static let cellDiameter: Float = 1.35
     static let minScale: Float = 0.5
     static let maxScale: Float = 8
     private static let turnPerMeter: Float = 4
-    /// How close to the centre of view an organelle must be to count as looked at, and how far away the view may drift
-    /// (towards the organelle or its panel) before the panel closes again.
-    private static let lookOpenAngle: Float = 12 * .pi / 180
-    private static let lookKeepAngle: Float = 22 * .pi / 180
-    private static let lookDwell: TimeInterval = 0.4
-    private static let lookLinger: TimeInterval = 0.8
 
     private let cellHome = SIMD3<Float>(0, 1.45, -2.0)
     private let immersiveCenter = SIMD3<Float>(0, 1.45, 0)
@@ -66,8 +58,6 @@ final class CellSceneController {
     private var isLoaded = false
     private var panelSubscription: EventSubscription?
     private var panelHeight: Float = 0.2
-    private var lookCandidate: (kind: OrganelleKind, since: TimeInterval)?
-    private var lookAwaySince: TimeInterval?
 
     func load(into content: RealityViewContent, model: AppModel) async {
         self.model = model
@@ -78,7 +68,6 @@ final class CellSceneController {
         panelSubscription = content.subscribe(to: SceneEvents.Update.self) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.pinPanelEdge()
-                self?.trackLook()
             }
         }
         root.addChild(cellRoot)
@@ -147,12 +136,19 @@ final class CellSceneController {
         wrapper.addChild(entity)
     }
 
+    /// The look target sits just in front of the organelle, so the system's eye tracking lands on it and reveals the panel.
     func mountInfoPanel(_ entity: Entity, kind: OrganelleKind) {
         guard infoPanels[kind] == nil, let wrapper = organelles[kind] else { return }
         infoPanels[kind] = entity
         entity.components.set(BillboardComponent())
-        entity.position = scatteredOffset(for: kind, toward: SIMD3<Float>(0, 1, 0), gap: 0.22)
+        entity.position = scatteredOffset(for: kind, toward: SIMD3<Float>(0, 0, 1), gap: 0.02)
         wrapper.addChild(entity)
+    }
+
+    /// How big the look target over an organelle should be, in meters.
+    func lookTargetSize(for kind: OrganelleKind) -> Float {
+        let size = simd_max(extents[kind] ?? .zero, SIMD3<Float>(repeating: 0.14))
+        return max(size.x, size.y, size.z) * 0.9
     }
 
     /// A spot just outside a scattered organelle in a room direction (right, up), expressed in the organelle's own
@@ -179,60 +175,7 @@ final class CellSceneController {
             let kind = spec.kind
             let visible = phase == .scatter && !model.placedKinds.contains(kind)
             infoButtons[kind]?.isEnabled = visible
-            infoPanels[kind]?.isEnabled = visible && (model.openInfo.contains(kind) || model.lookedAt == kind)
-        }
-    }
-
-    /// Opens the info panel of the scattered organelle the user is facing. It opens after a short dwell and stays open
-    /// while they read the panel, closing once they have looked away for a moment.
-    private func trackLook() {
-        guard let model, model.phase == .scatter, let head = headTransform() else {
-            if model?.lookedAt != nil { model?.lookedAt = nil }
-            lookCandidate = nil
-            lookAwaySince = nil
-            return
-        }
-        let eye = SIMD3<Float>(head.columns.3.x, head.columns.3.y, head.columns.3.z)
-        let forward = -simd_normalize(SIMD3<Float>(head.columns.2.x, head.columns.2.y, head.columns.2.z))
-        func angle(to point: SIMD3<Float>) -> Float {
-            let direction = point - eye
-            guard simd_length(direction) > 0.001 else { return .pi }
-            return acos(min(max(simd_dot(simd_normalize(direction), forward), -1), 1))
-        }
-        let now = CACurrentMediaTime()
-
-        if let current = model.lookedAt {
-            let organelle = organelles[current]?.position(relativeTo: nil)
-            let panel = infoPanels[current]?.position(relativeTo: nil)
-            let near = [organelle, panel].compactMap { $0 }.contains { angle(to: $0) < Self.lookKeepAngle }
-            if near && !model.placedKinds.contains(current) {
-                lookAwaySince = nil
-                return
-            }
-            let since = lookAwaySince ?? now
-            lookAwaySince = since
-            guard now - since > Self.lookLinger || model.placedKinds.contains(current) else { return }
-            model.lookedAt = nil
-            lookAwaySince = nil
-        }
-
-        let facing = OrganelleCatalog.order
-            .filter { !model.placedKinds.contains($0.kind) }
-            .compactMap { spec -> (OrganelleKind, Float)? in
-                guard let entity = organelles[spec.kind] else { return nil }
-                return (spec.kind, angle(to: entity.position(relativeTo: nil)))
-            }
-            .filter { $0.1 < Self.lookOpenAngle }
-            .min { $0.1 < $1.1 }?.0
-        guard let facing else {
-            lookCandidate = nil
-            return
-        }
-        if lookCandidate?.kind != facing {
-            lookCandidate = (facing, now)
-        } else if let candidate = lookCandidate, now - candidate.since > Self.lookDwell {
-            model.lookedAt = facing
-            lookCandidate = nil
+            infoPanels[kind]?.isEnabled = visible
         }
     }
 
@@ -265,12 +208,36 @@ final class CellSceneController {
     func dragEnded(_ value: EntityTargetValue<DragGesture.Value>) {
         drags[ObjectIdentifier(value.entity)] = nil
         turnStart = nil
-        guard let model, model.phase == .scatter,
-            let kind = OrganelleKind(rawValue: value.entity.name),
-            !model.placedKinds.contains(kind)
+        guard let kind = OrganelleKind(rawValue: value.entity.name) else { return }
+        release(kind)
+    }
+
+    /// Drag that starts on an organelle's look target. `translation` is in meters, in world space.
+    func dragOrganelle(_ kind: OrganelleKind, by translation: SIMD3<Float>) {
+        guard let model, model.phase == .scatter, !model.placedKinds.contains(kind),
+            let entity = organelles[kind]
+        else { return }
+        let key = ObjectIdentifier(entity)
+        if drags[key] == nil {
+            drags[key] = (entity.position(relativeTo: nil), .zero)
+        }
+        guard let state = drags[key] else { return }
+        entity.setPosition(state.position + translation, relativeTo: nil)
+    }
+
+    func dragOrganelleEnded(_ kind: OrganelleKind) {
+        guard let entity = organelles[kind] else { return }
+        drags[ObjectIdentifier(entity)] = nil
+        release(kind)
+    }
+
+    /// Drops an organelle: into the cell if it is the next one and close enough, otherwise back to its spot.
+    private func release(_ kind: OrganelleKind) {
+        guard let model, model.phase == .scatter, !model.placedKinds.contains(kind),
+            let entity = organelles[kind]
         else { return }
         let distance = simd_distance(
-            value.entity.position(relativeTo: nil), cellRoot.position(relativeTo: nil))
+            entity.position(relativeTo: nil), cellRoot.position(relativeTo: nil))
         guard distance < cellRadius * model.cellScale * 0.85 else { return }
         guard let next = model.nextSpec else { return }
         if kind == next.kind {
