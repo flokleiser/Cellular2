@@ -102,7 +102,7 @@ final class HandMenuController {
         buttonAnchor.isEnabled = facing
     }
 
-    private func headTransform() -> simd_float4x4? {
+    func headTransform() -> simd_float4x4? {
         guard world.state == .running,
               let device = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) else { return nil }
         return device.originFromAnchorTransform

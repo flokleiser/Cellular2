@@ -14,6 +14,7 @@ struct ImmersiveView: View {
             model.resetProgress()
             content.add(handMenu.buttonAnchor)
             content.add(handMenu.panelAnchor)
+            controller.headTransform = { [handMenu] in handMenu.headTransform() }
             await controller.load(into: content, model: model)
         } update: { _, attachments in
             if model.sceneReady {
