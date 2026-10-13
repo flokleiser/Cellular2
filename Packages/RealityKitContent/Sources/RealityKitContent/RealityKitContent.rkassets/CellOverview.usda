@@ -1,0 +1,163 @@
+#usda 1.0
+(
+    defaultPrim = "Root"
+    metersPerUnit = 1
+    upAxis = "Y"
+)
+
+def Xform "Root"
+{
+    def Xform "Cell_Membrane" (
+        prepend references = @Cell_Membrane.usdc@
+    )
+    {
+        double3 xformOp:translate = (-2.5, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+
+        over "_materials"
+        {
+            over "Material_001"
+            {
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+        }
+    }
+
+    def Xform "Nucleus" (
+        prepend references = @Nucleus.usdc@
+    )
+    {
+        double3 xformOp:translate = (-1.5, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+
+        over "_materials"
+        {
+            over "Material_004"
+            {
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+
+            over "Material_027"
+            {
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+        }
+    }
+
+    def Xform "Ribosomes" (
+        prepend references = @Ribosomes.usdc@
+    )
+    {
+        double3 xformOp:translate = (-0.5, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+
+        over "_materials"
+        {
+            over "Material_015"
+            {
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+        }
+    }
+
+    def Xform "Golgi" (
+        prepend references = @Golgi.usdc@
+    )
+    {
+        double3 xformOp:translate = (1.5, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def Xform "Mitochondrion_open_3" (
+        prepend references = @Mitochondrion_open_3.usdc@
+    )
+    {
+        double3 xformOp:translate = (2.5, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def "ER" (
+        active = true
+        prepend apiSchemas = ["MaterialBindingAPI"]
+        prepend references = @ER.usdc@
+    )
+    {
+        rel material:binding = </Root/ER/_materials/Material_015> (
+            bindMaterialAs = "weakerThanDescendants"
+        )
+        quatf xformOp:orient = (0.70710677, -0.70710677, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:translate = (2.2316391, 0, 30.60516)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+        over "_materials"
+        {
+            over "Material_015"
+            {
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+
+            over "Material_005"
+            {
+                token inputs:frame:stPrimvarName = "st" (
+                    customData = {
+                        dictionary realitykit = {
+                            bool hide = 1
+                        }
+                    }
+                )
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+
+                def Shader "opacity"
+                {
+                    uniform token info:id = "UsdUVTexture"
+                    asset inputs:file = @textures_test/Material.005_Normal_OpenGL.png@
+                    float2 inputs:st.connect = </Root/ER/_materials/Material_005/opacity/TexCoordReader.outputs:result>
+                    float outputs:r
+
+                    def Shader "TexCoordReader"
+                    {
+                        uniform token info:id = "UsdPrimvarReader_float2"
+                        token inputs:varname.connect = </Root/ER/_materials/Material_005.inputs:frame:stPrimvarName>
+                        float2 outputs:result
+                    }
+                }
+
+                over "Principled_BSDF"
+                {
+                    delete float inputs:opacity.connect = </Root/ER/_materials/Material_005/opacity.outputs:r>
+                    prepend float inputs:opacity.connect = </Root/ER/_materials/Material_005/opacity.outputs:r>
+                }
+            }
+        }
+    }
+
+    def "ER_New" (
+        active = true
+        prepend references = @ER_New.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.68388045, -0.6838805, -0.17974274, -0.17974275)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.194698, 0, 56.222458)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Nucleus_New" (
+        active = true
+        prepend references = @Nucleus/Nucleus_New.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.7071067, -0.7071068, 0, 0)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.180285, 0.0021409648, 56.21668)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+}
+

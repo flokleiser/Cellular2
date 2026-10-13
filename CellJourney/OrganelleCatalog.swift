@@ -52,7 +52,7 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .nucleus,
-            assetName: "Nucleus",
+            assetName: "Nucleus_New",
             title: "Nucleus",
             shortName: "nucleus",
             role: "The control centre of the cell. DNA is stored here, and the gene for our protein is copied into a messenger RNA (mRNA) strand that leaves through pores in the nuclear envelope.",
@@ -80,7 +80,8 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .endoplasmicReticulum,
-            assetName: "ER",
+//            assetName: "ER",
+            assetName: "ER_New",
             title: "Endoplasmic Reticulum",
             shortName: "endoplasmic reticulum",
             role: "A folded network of membranes. New proteins slip inside, fold into their 3D shape and are quality-checked before they move on.",
