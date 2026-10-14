@@ -72,14 +72,6 @@ def Xform "Root"
         uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
-    def Xform "Mitochondrion_open_3" (
-        prepend references = @Mitochondrion_open_3.usdc@
-    )
-    {
-        double3 xformOp:translate = (2.5, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-    }
-
     def "ER" (
         active = true
         prepend apiSchemas = ["MaterialBindingAPI"]
@@ -138,25 +130,58 @@ def Xform "Root"
         }
     }
 
-    def "ER_New" (
+    def "ER_New2" (
         active = true
-        prepend references = @ER_New.usdz@
+        prepend references = @ER_NEW/ER_New2.usdz@
     )
     {
         quatf xformOp:orient = (0.68388045, -0.6838805, -0.17974274, -0.17974275)
         float3 xformOp:scale = (0.01, 0.01, 0.01)
-        float3 xformOp:translate = (-20.194698, 0, 56.222458)
+        float3 xformOp:translate = (-20.20602, -1.1641532e-10, 56.246277)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 
-    def "Nucleus_New" (
+    def "Cellmembrane" (
         active = true
-        prepend references = @Nucleus/Nucleus_New.usdz@
+        prepend references = @Cellmembrane.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.71305776, -0.27137423, -0.5908138, 0.2623807)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.18427, 0, 56.38073)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Nucleus_1" (
+        active = true
+        prepend references = @Nucleus.usdz@
     )
     {
         quatf xformOp:orient = (0.7071067, -0.7071068, 0, 0)
         float3 xformOp:scale = (0.01, 0.01, 0.01)
-        float3 xformOp:translate = (-20.180285, 0.0021409648, 56.21668)
+        float3 xformOp:translate = (-20.181513, 0, 56.371185)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Ribosomes_New2" (
+        active = true
+        prepend references = @Ribosome_New2/Ribosomes_New2.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, -3.7748954e-8, 0, 0)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.168343, 4.656613e-10, 56.38264)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Mitochondrion_New" (
+        active = true
+        prepend references = @Mitochondrion_New.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.16799, 0, 56.37893)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 }

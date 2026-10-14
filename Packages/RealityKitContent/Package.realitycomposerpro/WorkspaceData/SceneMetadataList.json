@@ -3,9 +3,7 @@
     "objectMetadataList" : [
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
-        "Root",
-        "Untitled",
-        "Materials"
+        "Root"
       ],
       {
         "isExpanded" : true,
@@ -13,7 +11,9 @@
       },
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
-        "Root"
+        "Root",
+        "Untitled",
+        "Materials"
       ],
       {
         "isExpanded" : true,

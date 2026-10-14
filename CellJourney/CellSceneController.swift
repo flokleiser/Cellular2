@@ -28,6 +28,12 @@ final class CellSceneController {
     static let minScale: Float = 0.5
     static let maxScale: Float = 8
     private static let turnPerMeter: Float = 4
+    /// true: Cellmembrane.usdz with its own material. false: Cell_Membrane with the see-through material made in code.
+//    private static let useCustomMembrane = true
+//    private static let useCustomMembrane = false
+    private static let useCustomMembrane = true
+    /// true: organelles are always drawn before the see-through membrane, so it can't hide them while rotating.
+    private static let forceOrganellesBeforeMembrane = true
 
     private let cellHome = SIMD3<Float>(0, 1.45, -2.0)
     private let immersiveCenter = SIMD3<Float>(0, 1.45, 0)
@@ -39,6 +45,7 @@ final class CellSceneController {
     private let scatterRoot = Entity()
     private let membraneHolder = Entity()
     private let panelHolder = Entity()
+    private let cellDrawOrder = ModelSortGroup(depthPass: nil)
     private var sky: ModelEntity?
 
     private var organelles: [OrganelleKind: Entity] = [:]
@@ -75,14 +82,20 @@ final class CellSceneController {
         root.addChild(panelHolder)
         cellRoot.position = cellHome
 
-        if let membrane = await loadCentered(named: "Cell_Membrane") {
+        let membraneName = Self.useCustomMembrane ? "Cellmembrane" : "Cell_Membrane"
+        if let membrane = await loadCentered(named: membraneName) {
             let largest = max(membrane.extents.x, membrane.extents.y, membrane.extents.z)
             unit = Self.cellDiameter / largest
             cellRadius = Self.cellDiameter / 2
             let visual = Entity()
             visual.scale = SIMD3<Float>(repeating: unit)
             visual.addChild(membrane.entity)
-            Self.makeTransparent(visual)
+            if !Self.useCustomMembrane {
+                Self.makeTransparent(visual)
+            }
+            if Self.forceOrganellesBeforeMembrane {
+                Self.setDrawOrder(visual, group: cellDrawOrder, order: 1)
+            }
             membraneHolder.name = "cell"
             membraneHolder.addChild(visual)
             membraneHolder.components.set(
@@ -99,6 +112,9 @@ final class CellSceneController {
             visual.addChild(loaded.entity)
 //            let transparencyComponent = OpacityComponent(opacity: 0.5)
 //            Self.makeGhostly(visual)
+            if Self.forceOrganellesBeforeMembrane {
+                Self.setDrawOrder(visual, group: cellDrawOrder, order: 0)
+            }
             let wrapper = Entity()
             wrapper.name = spec.kind.rawValue
             wrapper.addChild(visual)
@@ -682,6 +698,16 @@ final class CellSceneController {
             entity.children.forEach(assign)
         }
         assign(entity)
+    }
+
+    /// Within one sort group, lower orders are drawn first.
+    private static func setDrawOrder(_ entity: Entity, group: ModelSortGroup, order: Int32) {
+        if entity.components.has(ModelComponent.self) {
+            entity.components.set(ModelSortGroupComponent(group: group, order: order))
+        }
+        for child in entity.children {
+            setDrawOrder(child, group: group, order: order)
+        }
     }
 
     private func makeSky() -> ModelEntity {

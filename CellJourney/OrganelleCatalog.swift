@@ -37,7 +37,7 @@ enum OrganelleCatalog {
     static let order: [OrganelleSpec] = [
         OrganelleSpec(
             kind: .mitochondrion,
-            assetName: "Mitochondrion_open_3",
+            assetName: "Mitochondrion_New",
             title: "Mitochondrion",
             shortName: "mitochondrion",
             role: "The powerhouse of the cell. It makes ATP, the energy that fuels every step of building, folding and moving proteins.",
@@ -52,7 +52,7 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .nucleus,
-            assetName: "Nucleus_New",
+            assetName: "Nucleus_1",
             title: "Nucleus",
             shortName: "nucleus",
             role: "The control centre of the cell. DNA is stored here, and the gene for our protein is copied into a messenger RNA (mRNA) strand that leaves through pores in the nuclear envelope.",
@@ -66,7 +66,8 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .ribosomes,
-            assetName: "Ribosomes",
+            assetName: "Ribosomes_New2",
+//            assetName: "Ribosomes",
             title: "Ribosomes",
             shortName: "ribosomes",
             role: "Tiny protein factories. They read the mRNA message and link amino acids together, one by one, into a brand new protein chain.",
@@ -81,7 +82,7 @@ enum OrganelleCatalog {
         OrganelleSpec(
             kind: .endoplasmicReticulum,
 //            assetName: "ER",
-            assetName: "ER_New",
+            assetName: "ER_NEW/ER_New2",
             title: "Endoplasmic Reticulum",
             shortName: "endoplasmic reticulum",
             role: "A folded network of membranes. New proteins slip inside, fold into their 3D shape and are quality-checked before they move on.",
