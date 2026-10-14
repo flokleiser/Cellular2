@@ -52,7 +52,7 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .nucleus,
-            assetName: "Nucleus_1",
+            assetName: "Nucleus",
             title: "Nucleus",
             shortName: "nucleus",
             role: "The control centre of the cell. DNA is stored here, and the gene for our protein is copied into a messenger RNA (mRNA) strand that leaves through pores in the nuclear envelope.",
@@ -97,6 +97,7 @@ enum OrganelleCatalog {
         OrganelleSpec(
             kind: .golgi,
             assetName: "Golgi",
+//            assetName: "Golgi_New",
             title: "Golgi Apparatus",
             shortName: "Golgi apparatus",
             role: "The cell's post office. It adds the finishing touches to proteins, sorts them and packs them into vesicles addressed to their destination.",

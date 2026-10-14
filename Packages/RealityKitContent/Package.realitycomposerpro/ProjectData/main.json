@@ -1,9 +1,11 @@
 {
   "pathsToIds" : {
-    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/CellOverview.usda" : "D0616AF4-E3BA-4744-B3A4-FF636CC440F4"
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/CellOverview.usda" : "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Golgi.usdc" : "158F91B3-E38F-4B9F-9911-DE2DD2261E4B"
   },
   "projectID" : 1491249069084277727,
   "uuidToIntID" : {
+    "158F91B3-E38F-4B9F-9911-DE2DD2261E4B" : 7100975448951139217,
     "D0616AF4-E3BA-4744-B3A4-FF636CC440F4" : 2024800222029078239
   }
 }

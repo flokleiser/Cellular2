@@ -7,67 +7,15 @@
 
 def Xform "Root"
 {
-    def Xform "Cell_Membrane" (
-        prepend references = @Cell_Membrane.usdc@
-    )
-    {
-        double3 xformOp:translate = (-2.5, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        over "_materials"
-        {
-            over "Material_001"
-            {
-                token outputs:mtlx:surface
-                token outputs:realitykit:vertex
-            }
-        }
-    }
-
-    def Xform "Nucleus" (
-        prepend references = @Nucleus.usdc@
-    )
-    {
-        double3 xformOp:translate = (-1.5, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        over "_materials"
-        {
-            over "Material_004"
-            {
-                token outputs:mtlx:surface
-                token outputs:realitykit:vertex
-            }
-
-            over "Material_027"
-            {
-                token outputs:mtlx:surface
-                token outputs:realitykit:vertex
-            }
-        }
-    }
-
-    def Xform "Ribosomes" (
-        prepend references = @Ribosomes.usdc@
-    )
-    {
-        double3 xformOp:translate = (-0.5, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        over "_materials"
-        {
-            over "Material_015"
-            {
-                token outputs:mtlx:surface
-                token outputs:realitykit:vertex
-            }
-        }
-    }
-
+    reorder nameChildren = ["Golgi", "ER", "ER_New2", "Cellmembrane", "Mitochondrion_New", "Ribosomes_New2", "Nucleus", "Golgi_New", "Gelb"]
     def Xform "Golgi" (
-        prepend references = @Golgi.usdc@
+        prepend apiSchemas = ["MaterialBindingAPI"]
+        references = @Golgi.usdc@
     )
     {
+        rel material:binding = </Root/Gelb> (
+            bindMaterialAs = "weakerThanDescendants"
+        )
         double3 xformOp:translate = (1.5, 0, 0)
         uniform token[] xformOpOrder = ["xformOp:translate"]
     }
@@ -75,7 +23,7 @@ def Xform "Root"
     def "ER" (
         active = true
         prepend apiSchemas = ["MaterialBindingAPI"]
-        prepend references = @ER.usdc@
+        references = @ER.usdc@
     )
     {
         rel material:binding = </Root/ER/_materials/Material_015> (
@@ -132,7 +80,7 @@ def Xform "Root"
 
     def "ER_New2" (
         active = true
-        prepend references = @ER_NEW/ER_New2.usdz@
+        references = @ER_NEW/ER_New2.usdz@
     )
     {
         quatf xformOp:orient = (0.68388045, -0.6838805, -0.17974274, -0.17974275)
@@ -143,7 +91,7 @@ def Xform "Root"
 
     def "Cellmembrane" (
         active = true
-        prepend references = @Cellmembrane.usdz@
+        references = @Cellmembrane.usdz@
     )
     {
         quatf xformOp:orient = (0.71305776, -0.27137423, -0.5908138, 0.2623807)
@@ -152,37 +100,65 @@ def Xform "Root"
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 
-    def "Nucleus_1" (
-        active = true
-        prepend references = @Nucleus.usdz@
-    )
-    {
-        quatf xformOp:orient = (0.7071067, -0.7071068, 0, 0)
-        float3 xformOp:scale = (0.01, 0.01, 0.01)
-        float3 xformOp:translate = (-20.181513, 0, 56.371185)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-    }
-
-    def "Ribosomes_New2" (
-        active = true
-        prepend references = @Ribosome_New2/Ribosomes_New2.usdz@
-    )
-    {
-        quatf xformOp:orient = (1, -3.7748954e-8, 0, 0)
-        float3 xformOp:scale = (0.01, 0.01, 0.01)
-        float3 xformOp:translate = (-20.168343, 4.656613e-10, 56.38264)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-    }
-
     def "Mitochondrion_New" (
         active = true
-        prepend references = @Mitochondrion_New.usdz@
+        references = @Mitochondrion_New.usdz@
     )
     {
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.01, 0.01, 0.01)
         float3 xformOp:translate = (-20.16799, 0, 56.37893)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Ribosomes_New2" (
+        active = true
+        references = @Ribosomes_New2.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, -3.7748954e-8, 0, 0)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.168396, 0, 56.380264)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Nucleus" (
+        active = true
+        references = @Nucleus.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.7071067, -0.7071068, 0, 0)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.169632, 0, 56.380104)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Golgi_New" (
+        active = true
+        references = @Golgi_New.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.7071067, -0.7071068, 0, 0)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.189184, 0, 56.37644)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def Material "Gelb"
+    {
+        token outputs:mtlx:surface
+        token outputs:realitykit:vertex
+        token outputs:surface.connect = </Root/Gelb/UsdPreviewSurface.outputs:surface>
+
+        def Shader "UsdPreviewSurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0.7909351, 0.7434345, 0.15296713) (
+                colorSpace = "srgb_texture"
+            )
+            float inputs:opacity = 0.5944531
+            token outputs:surface
+        }
     }
 }
 
