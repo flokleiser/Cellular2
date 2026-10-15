@@ -23,8 +23,8 @@ struct ImmersiveView: View {
                     controller.mountPanel(panel)
                 }
                 for kind in OrganelleKind.allCases {
-                    if let button = attachments.entity(for: "button-\(kind.rawValue)") {
-                        controller.mountInfoButton(button, kind: kind)
+                    if let card = attachments.entity(for: "card-\(kind.rawValue)") {
+                        controller.mountInfoCard(card, kind: kind)
                     }
                     if let panel = attachments.entity(for: "panel-\(kind.rawValue)") {
                         controller.mountInfoPanel(panel, kind: kind)
@@ -45,6 +45,7 @@ struct ImmersiveView: View {
                 JourneyPanel(
                     model: model,
                     onReset: { controller.reset() },
+                    onStep: { controller.stepBack(to: $0) },
                     onDebug: { handMenu.togglePanel(model: model) },
                     onExit: { leave() }
                 )
@@ -62,15 +63,18 @@ struct ImmersiveView: View {
                 )
             }
             ForEach(OrganelleKind.allCases) { kind in
-                Attachment(id: "button-\(kind.rawValue)") {
-                    InfoButton(kind: kind, model: model)
+                Attachment(id: "card-\(kind.rawValue)") {
+                    InfoCard(
+                        spec: OrganelleCatalog.spec(for: kind),
+                        model: model,
+                        opensLeft: CellSceneController.opensLeft(kind)
+                    )
                 }
             }
             ForEach(OrganelleKind.allCases) { kind in
                 Attachment(id: "panel-\(kind.rawValue)") {
                     LookTarget(
                         spec: OrganelleCatalog.spec(for: kind),
-                        model: model,
                         size: controller.lookTargetSize(for: kind),
                         onDrag: { controller.dragOrganelle(kind, by: $0) },
                         onDragEnded: { controller.dragOrganelleEnded(kind) }

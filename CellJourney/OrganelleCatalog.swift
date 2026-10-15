@@ -116,4 +116,9 @@ enum OrganelleCatalog {
     static func spec(for kind: OrganelleKind) -> OrganelleSpec {
         order.first { $0.kind == kind }!
     }
+
+    /// Its step in the journey, counting from 1.
+    static func number(for kind: OrganelleKind) -> Int {
+        (order.firstIndex { $0.kind == kind } ?? 0) + 1
+    }
 }

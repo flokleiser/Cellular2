@@ -20,6 +20,8 @@ final class AppModel {
     var paperFound = false
     var placedKinds: Set<OrganelleKind> = []
     var openInfo: Set<OrganelleKind> = []
+    /// Organelles held by a hand right now; their info cards hide meanwhile.
+    var draggingKinds: Set<OrganelleKind> = []
     var hint: String?
     var caption: String?
     var cellScale: Float = 1
@@ -65,6 +67,7 @@ final class AppModel {
         phase = .intro
         placedKinds = []
         openInfo = []
+        draggingKinds = []
         hint = nil
         caption = nil
         cellScale = 1

@@ -1,75 +1,121 @@
 import SwiftUI
 
-struct InfoButton: View {
-    let kind: OrganelleKind
+/// The info button next to a scattered organelle, which opens into a card about it and closes back into the button.
+/// The button keeps its spot while the card grows outward (away from the cell) and down; `mountInfoCard` places the
+/// attachment so that its corner lands where the button belongs, which is why the sizes are in meters.
+struct InfoCard: View {
+    let spec: OrganelleSpec
     let model: AppModel
+    let opensLeft: Bool
+
+    /// Room the card can take up, in meters.
+    static let size = SIMD2<Float>(0.40, 0.30)
+    static let buttonSide: Float = 0.044
+    /// Gap between the card's edge and the button.
+    static let inset: Float = 0.016
+
+    @Environment(\.physicalMetrics) private var metrics
 
     var body: some View {
-        let isOpen = model.openInfo.contains(kind)
+        let isOpen = model.openInfo.contains(spec.kind)
+        let isDragged = model.draggingKinds.contains(spec.kind)
+        let inset = points(Self.inset)
+        VStack(alignment: opensLeft ? .trailing : .leading, spacing: 14) {
+            HStack(spacing: 16) {
+                if opensLeft {
+                    title(isOpen)
+                    button(isOpen)
+                } else {
+                    button(isOpen)
+                    title(isOpen)
+                }
+            }
+            if isOpen {
+                Text(spec.role)
+                    .font(.title3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
+            }
+        }
+        .padding(inset)
+        .frame(width: isOpen ? points(Self.size.x) : nil, alignment: opensLeft ? .trailing : .leading)
+        .glassBackgroundEffect(
+            in: RoundedRectangle(cornerRadius: 30, style: .continuous), displayMode: isOpen ? .always : .never)
+        .frame(
+            width: points(Self.size.x), height: points(Self.size.y),
+            alignment: opensLeft ? .topTrailing : .topLeading)
+        .opacity(isDragged ? 0 : 1)
+        .animation(.spring(duration: 0.4), value: isOpen)
+        .animation(.easeOut(duration: 0.2), value: isDragged)
+    }
+
+    private func button(_ isOpen: Bool) -> some View {
         Button {
-            model.toggleInfo(kind)
+            model.toggleInfo(spec.kind)
         } label: {
             Image(systemName: isOpen ? "xmark" : "info")
                 .font(.title.weight(.semibold))
-                .frame(width: 60, height: 60)
+                .frame(width: points(Self.buttonSide), height: points(Self.buttonSide))
         }
         .buttonBorderShape(.circle)
     }
-}
 
-struct InfoPanel: View {
-    let spec: OrganelleSpec
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(spec.title)
+    @ViewBuilder
+    private func title(_ isOpen: Bool) -> some View {
+        if isOpen {
+            Text("\(OrganelleCatalog.number(for: spec.kind))  \(spec.title)")
                 .font(.largeTitle.bold())
-            Text(spec.role)
-                .font(.title3)
+                .lineLimit(2)
+                .transition(.opacity)
         }
-        .padding(30)
-        .frame(width: 520, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
-        .glassBackgroundEffect()
+    }
+
+    private func points(_ meters: Float) -> CGFloat {
+        metrics.convert(CGFloat(meters), from: .meters)
     }
 }
 
-/// Sits over a scattered organelle. Apps never learn where the eyes are, so the panel is revealed by a system hover
-/// effect: looking at the organelle (or the panel itself) opens it, the info button pins it open.
+/// Sits over a scattered organelle. Apps never learn where the eyes are, so its label is revealed by a system hover
+/// effect: looking at the organelle shows its number and name below it.
 /// It covers the organelle, so dragging the organelle happens here too.
 struct LookTarget: View {
     let spec: OrganelleSpec
-    let model: AppModel
     /// Side of the target in meters.
     let size: Float
     let onDrag: (SIMD3<Float>) -> Void
     let onDragEnded: () -> Void
 
     @Environment(\.physicalMetrics) private var metrics
-    /// Room above the target for the panel, mirrored below so the target stays centred on the organelle.
-    private let reserve: CGFloat = 420
-    private let gap: CGFloat = 24
+    /// Room below the target for the label, mirrored above so the target stays centred on the organelle.
+    private let labelRoom: CGFloat = 80
+    private let gap: CGFloat = 16
 
     var body: some View {
         let side = metrics.convert(CGFloat(size), from: .meters)
-        let pinned = model.openInfo.contains(spec.kind)
         VStack(spacing: gap) {
-            InfoPanel(spec: spec)
-                .hoverEffect { effect, isActive, _ in
-                    effect.animation(.easeOut(duration: 0.25).delay(isActive ? 0.25 : 0.6)) {
-                        $0.opacity(isActive || pinned ? 1 : 0)
-                            .scaleEffect(isActive || pinned ? 1 : 0.92, anchor: .bottom)
-                    }
-                }
-                .frame(height: reserve, alignment: .bottom)
+            Color.clear
+                .frame(height: labelRoom)
             // Invisible: only here so gaze and drags land on something over the organelle.
             Color.clear
                 .frame(width: side, height: side)
                 .contentShape(.hoverEffect, .rect(cornerRadius: side / 4))
                 .contentShape(.rect(cornerRadius: side / 4))
                 .gesture(drag)
-            Color.clear
-                .frame(height: reserve)
+            Text("\(OrganelleCatalog.number(for: spec.kind))  \(spec.title)")
+                .font(.title.bold())
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 26)
+                .padding(.vertical, 12)
+                .glassBackgroundEffect(in: Capsule())
+                .hoverEffect { effect, isActive, _ in
+                    effect.animation(.easeOut(duration: 0.2).delay(isActive ? 0.15 : 0.3)) {
+                        $0.opacity(isActive ? 1 : 0)
+                            .scaleEffect(isActive ? 1 : 0.9, anchor: .top)
+                    }
+                }
+                .frame(height: labelRoom, alignment: .top)
         }
         .hoverEffectGroup()
     }
@@ -89,10 +135,12 @@ struct LookTarget: View {
     }
 }
 
-/// One panel for the whole journey, below the cell: the intro card morphs into the progress banner.
+/// The panel below the cell. The intro card morphs into two stacked panels: what to do and what just happened on
+/// top, the numbered steps and controls below.
 struct JourneyPanel: View {
     let model: AppModel
     let onReset: () -> Void
+    let onStep: (Int) -> Void
     let onDebug: () -> Void
     let onExit: () -> Void
 
@@ -133,19 +181,27 @@ struct JourneyPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             if isIntro {
                 intro
+                    .padding(36)
+                    .frame(width: 700)
+                    .glassBackgroundEffect()
                     .transition(.blurReplace)
             } else {
-                progress
+                instructions
+                    .padding(40)
+                    .frame(width: 940)
+                    .glassBackgroundEffect()
+                    .transition(.blurReplace)
+                controls
+                    .padding(.horizontal, 30)
+                    .padding(.vertical, 20)
+                    .glassBackgroundEffect()
                     .transition(.blurReplace)
             }
         }
-        .padding(isIntro ? 36 : 44)
-        .frame(width: isIntro ? 700 : 940)
         .fixedSize(horizontal: false, vertical: true)
-        .glassBackgroundEffect()
         .animation(.spring(duration: 0.9), value: isIntro)
     }
 
@@ -163,8 +219,8 @@ struct JourneyPanel: View {
         }
     }
 
-    private var progress: some View {
-        VStack(spacing: 22) {
+    private var instructions: some View {
+        VStack(spacing: 18) {
             Text(headline)
                 .font(.extraLargeTitle2.bold())
                 .multilineTextAlignment(.center)
@@ -174,28 +230,64 @@ struct JourneyPanel: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            HStack(spacing: 22) {
-                ForEach(OrganelleCatalog.order, id: \.kind) { spec in
-                    Image(systemName: model.placedKinds.contains(spec.kind) ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(model.placedKinds.contains(spec.kind) ? Color.green : Color.secondary)
-                        .font(.largeTitle)
-                }
-                Spacer().frame(width: 12)
-                Button(action: onReset) {
-                    Label("Reset", systemImage: "arrow.counterclockwise")
-                }
-                Button(action: onExit) {
-                    Label("Exit", systemImage: "xmark.circle")
-                }
-                if !model.handMenuAvailable {
-                    Button(action: onDebug) {
-                        Image(systemName: "ladybug")
-                    }
-                    .buttonBorderShape(.circle)
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 18) {
+            ForEach(Array(OrganelleCatalog.order.enumerated()), id: \.element.kind) { index, spec in
+                StepButton(
+                    number: index + 1,
+                    isDone: model.placedKinds.contains(spec.kind),
+                    isNext: model.phase == .scatter && model.nextSpec?.kind == spec.kind
+                ) {
+                    onStep(index)
                 }
             }
-            .font(.title2)
-            .controlSize(.extraLarge)
+            Spacer().frame(width: 16)
+            Button(action: onReset) {
+                Label("Reset", systemImage: "arrow.counterclockwise")
+            }
+            Button(action: onExit) {
+                Label("Exit", systemImage: "xmark.circle")
+            }
+            if !model.handMenuAvailable {
+                Button(action: onDebug) {
+                    Image(systemName: "ladybug")
+                }
+                .buttonBorderShape(.circle)
+            }
         }
+        .font(.title2)
+        .controlSize(.extraLarge)
+    }
+}
+
+/// One numbered step in the control bar. Completed steps are green and can be tapped to go back to them;
+/// the step that comes next is outlined.
+struct StepButton: View {
+    let number: Int
+    let isDone: Bool
+    let isNext: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text("\(number)")
+                .font(.title.bold())
+                .monospacedDigit()
+                .foregroundStyle(isDone ? Color.white : isNext ? Color.primary : Color.secondary)
+                .frame(width: 60, height: 60)
+                .background(Circle().fill(isDone ? Color.green : Color.clear))
+                .overlay(
+                    Circle().strokeBorder(
+                        isNext ? Color.accentColor : Color.secondary.opacity(isDone ? 0 : 0.5),
+                        lineWidth: isNext ? 3 : 2))
+                .contentShape(.hoverEffect, Circle())
+                .hoverEffect(.highlight)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isDone)
+        .help(isDone ? "Go back to step \(number)" : "")
     }
 }

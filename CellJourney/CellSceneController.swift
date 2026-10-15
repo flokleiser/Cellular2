@@ -78,6 +78,7 @@ final class CellSceneController {
     private var turnVelocity = SIMD2<Float>.zero
     /// Keeps the cell turning after the drag lets go, slowing down until it stops.
     private var spinVelocity = SIMD2<Float>.zero
+    private var shakeJob: Task<Void, Never>?
     private var epoch = 0
     private var unit: Float = 0.1
     private var cellRadius: Float = 0.675
@@ -168,15 +169,25 @@ final class CellSceneController {
         panelHolder.addChild(entity)
     }
 
-    func mountInfoButton(_ entity: Entity, kind: OrganelleKind) {
+    /// Organelles that scatter to the left keep their info card on their left, so it opens away from the cell.
+    static func opensLeft(_ kind: OrganelleKind) -> Bool {
+        cos(OrganelleCatalog.spec(for: kind).scatterAngle * .pi / 180) < -0.01
+    }
+
+    /// The info card's button sits just outside the organelle; the card hangs off it so it grows outward and down
+    /// without the button moving. The holder faces the user, so the offset is in screen directions.
+    func mountInfoCard(_ entity: Entity, kind: OrganelleKind) {
         guard infoButtons[kind] == nil, let wrapper = organelles[kind] else { return }
-        infoButtons[kind] = entity
-        entity.components.set(BillboardComponent())
-        // On the outer side, so it is not squeezed between the organelle and the cell.
-        let angle = OrganelleCatalog.spec(for: kind).scatterAngle * .pi / 180
-        let side: Float = cos(angle) < -0.01 ? -1 : 1
-        entity.position = scatteredOffset(for: kind, toward: SIMD3<Float>(side, 0, 0), gap: 0.08)
-        wrapper.addChild(entity)
+        let side: Float = Self.opensLeft(kind) ? -1 : 1
+        let holder = Entity()
+        holder.components.set(BillboardComponent())
+        holder.position = scatteredOffset(for: kind, toward: SIMD3<Float>(side, 0, 0), gap: 0.08)
+        let corner = InfoCard.inset + InfoCard.buttonSide / 2
+        entity.position = SIMD3<Float>(
+            side * (InfoCard.size.x / 2 - corner), -(InfoCard.size.y / 2 - corner), 0)
+        holder.addChild(entity)
+        wrapper.addChild(holder)
+        infoButtons[kind] = holder
     }
 
     /// The look target sits just in front of the organelle, so the system's eye tracking lands on it and reveals the panel.
@@ -273,6 +284,7 @@ final class CellSceneController {
         if drags[key] == nil {
             let origin = value.convert(value.startLocation3D, from: .local, to: parent)
             drags[key] = (entity.position, origin)
+            startDragging(kind)
         }
         guard let state = drags[key] else { return }
         entity.position = state.position + (pointer - state.pointer)
@@ -285,7 +297,14 @@ final class CellSceneController {
         }
         turnStart = nil
         guard let kind = OrganelleKind(rawValue: value.entity.name) else { return }
+        model?.draggingKinds.remove(kind)
         release(kind)
+    }
+
+    /// A grabbed organelle closes its info card, which stays hidden until it is let go.
+    private func startDragging(_ kind: OrganelleKind) {
+        model?.openInfo.remove(kind)
+        model?.draggingKinds.insert(kind)
     }
 
     /// Drag that starts on an organelle's look target. `translation` is in meters, in world space.
@@ -296,6 +315,7 @@ final class CellSceneController {
         let key = ObjectIdentifier(entity)
         if drags[key] == nil {
             drags[key] = (entity.position(relativeTo: nil), .zero)
+            startDragging(kind)
         }
         guard let state = drags[key] else { return }
         entity.setPosition(state.position + translation, relativeTo: nil)
@@ -304,6 +324,7 @@ final class CellSceneController {
     func dragOrganelleEnded(_ kind: OrganelleKind) {
         guard let entity = organelles[kind] else { return }
         drags[ObjectIdentifier(entity)] = nil
+        model?.draggingKinds.remove(kind)
         release(kind)
     }
 
@@ -320,6 +341,7 @@ final class CellSceneController {
             Task { await place(kind) }
         } else {
             sendHome(kind)
+            shake()
             model.showHint("Not yet. The \(next.shortName) comes first.")
         }
     }
@@ -402,6 +424,20 @@ final class CellSceneController {
     }
 
     func reset() {
+        rewind(to: 0)
+    }
+
+    /// Steps back to a completed step: that organelle and every later one leave the cell again.
+    func stepBack(to index: Int) {
+        guard let model, model.phase != .intro, OrganelleCatalog.order.indices.contains(index),
+            model.placedKinds.contains(OrganelleCatalog.order[index].kind)
+        else { return }
+        rewind(to: index)
+    }
+
+    /// Undoes every step from `index` on: stops the protein, shrinks the cell home if it was grown, and scatters
+    /// the undone organelles back to their spots. `rewind(to: 0)` starts over.
+    private func rewind(to index: Int) {
         guard let model else { return }
         epoch += 1
         let token = epoch
@@ -417,15 +453,20 @@ final class CellSceneController {
         magnifyStart = nil
         turnStart = nil
         spinVelocity = .zero
-        model.placedKinds = []
+        let order = OrganelleCatalog.order
+        let undone = order[index...].map(\.kind)
+        model.placedKinds = Set(order[..<index].map(\.kind))
         model.openInfo = []
+        model.draggingKinds = []
         model.hint = nil
-        model.caption = nil
+        model.caption = index > 0 ? order[index - 1].caption : nil
         model.phase = .scatter
         sky?.components.remove(InputTargetComponent.self)
         setInteractive(membraneHolder, false, hover: false)
-        for entity in organelles.values {
-            setInteractive(entity, false, hover: false)
+        for kind in undone {
+            if let entity = organelles[kind] {
+                setInteractive(entity, false, hover: false)
+            }
         }
         Task {
             if model.cellScale != 1 || cellRoot.orientation != simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
@@ -433,12 +474,14 @@ final class CellSceneController {
                 await animateCellHome(duration: 0.9, token: token)
             }
             guard token == epoch else { return }
-            scatterAll(duration: 1.4)
+            scatter(undone, duration: 1.4)
             try? await Task.sleep(for: .milliseconds(1500))
             guard token == epoch else { return }
             setInteractive(membraneHolder, true, hover: false)
-            for entity in organelles.values {
-                setInteractive(entity, true, hover: true)
+            for kind in undone {
+                if let entity = organelles[kind] {
+                    setInteractive(entity, true, hover: true)
+                }
             }
         }
     }
@@ -461,8 +504,13 @@ final class CellSceneController {
     }
 
     private func scatterAll(duration: TimeInterval) {
-        for spec in OrganelleCatalog.order {
-            guard let entity = organelles[spec.kind] else { continue }
+        scatter(OrganelleCatalog.order.map(\.kind), duration: duration)
+    }
+
+    private func scatter(_ kinds: [OrganelleKind], duration: TimeInterval) {
+        for kind in kinds {
+            let spec = OrganelleCatalog.spec(for: kind)
+            guard let entity = organelles[kind] else { continue }
             entity.setParent(scatterRoot, preservingWorldTransform: true)
             entity.move(
                 to: scatterTransform(for: spec),
@@ -684,12 +732,7 @@ final class CellSceneController {
         let scale = min(max(requested, Self.minScale), Self.maxScale)
         model.cellScale = scale
         cellRoot.scale = SIMD3<Float>(repeating: scale)
-        // Grows up and away from its base, so it never swallows the viewer or the panel below it, and its base
-        // lifts above eye level on the way.
-        let grown = max(scale - 1, 0) * cellRadius
-        let lift = (immersiveCenter.y + overheadClearance - (cellHome.y - cellRadius))
-            * Self.smoothstep(1, 3.5, scale)
-        cellRoot.position = cellHome + SIMD3<Float>(0, grown + lift, -growBack * grown)
+        cellRoot.position = cellPosition(at: scale)
         layoutAroundCell()
         let immersion = Self.smoothstep(3.0, 6.0, scale)
         model.immersion = immersion
@@ -701,6 +744,35 @@ final class CellSceneController {
             model.wantsFullImmersion = immersion > 0.85
         } else {
             model.wantsFullImmersion = immersion > 0.97
+        }
+    }
+
+    /// Grows up and away from its base, so it never swallows the viewer or the panel below it, and its base
+    /// lifts above eye level on the way.
+    private func cellPosition(at scale: Float) -> SIMD3<Float> {
+        let grown = max(scale - 1, 0) * cellRadius
+        let lift = (immersiveCenter.y + overheadClearance - (cellHome.y - cellRadius))
+            * Self.smoothstep(1, 3.5, scale)
+        return cellHome + SIMD3<Float>(0, grown + lift, -growBack * grown)
+    }
+
+    /// A quick side-to-side wobble of the cell and the scattered organelles: that was the wrong one.
+    private func shake() {
+        shakeJob?.cancel()
+        shakeJob = Task {
+            let frames = 30
+            for frame in 1...frames {
+                guard !Task.isCancelled, let model else { return }
+                let t = Float(frame) / Float(frames)
+                let swing = 0.014 * sin(t * 2 * .pi * 4) * (1 - t)
+                let rest = cellPosition(at: model.cellScale)
+                cellRoot.position = rest + SIMD3<Float>(swing, 0, 0)
+                scatterRoot.position = cellRoot.position
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+            guard let model else { return }
+            cellRoot.position = cellPosition(at: model.cellScale)
+            scatterRoot.position = cellRoot.position
         }
     }
 
@@ -904,6 +976,13 @@ final class CellSceneController {
                     gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
             }
             var generator = SeededGenerator(seed: 7)
+            // The image wraps around the sphere, so anything crossing the left or right edge is drawn again on the
+            // other side; otherwise it is cut off there and leaves a visible seam.
+            func wrapped(_ x: CGFloat, reach: CGFloat, draw: (CGFloat) -> Void) {
+                draw(x)
+                if x - reach < 0 { draw(x + size.width) }
+                if x + reach > size.width { draw(x - size.width) }
+            }
             // Soft light and shadow in the tissue.
             for _ in 0..<60 {
                 let radius = CGFloat.random(in: 60...220, using: &generator)
@@ -916,9 +995,12 @@ final class CellSceneController {
                     : UIColor(red: 0.08, green: 0.0, blue: 0.02, alpha: .random(in: 0.15...0.3, using: &generator))
                 let glow = [tone.cgColor, tone.withAlphaComponent(0).cgColor] as CFArray
                 if let gradient = CGGradient(colorsSpace: space, colors: glow, locations: [0, 1]) {
-                    cg.drawRadialGradient(
-                        gradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: radius,
-                        options: [])
+                    wrapped(center.x, reach: radius) { x in
+                        let spot = CGPoint(x: x, y: center.y)
+                        cg.drawRadialGradient(
+                            gradient, startCenter: spot, startRadius: 0, endCenter: spot, endRadius: radius,
+                            options: [])
+                    }
                 }
             }
             // Red blood cells: discs with a darker dimple, blurred by distance.
@@ -932,16 +1014,19 @@ final class CellSceneController {
                 let rim = UIColor(red: 0.85, green: 0.12, blue: 0.14, alpha: alpha)
                 let dimple = UIColor(red: 0.45, green: 0.04, blue: 0.07, alpha: alpha)
                 let disc = [dimple.cgColor, rim.cgColor, rim.withAlphaComponent(0).cgColor] as CFArray
-                cg.saveGState()
-                cg.translateBy(x: center.x, y: center.y)
-                cg.rotate(by: .random(in: 0...(.pi), using: &generator))
-                cg.scaleBy(x: 1, y: squash)
-                if let gradient = CGGradient(colorsSpace: space, colors: disc, locations: [0, 0.65, 1]) {
+                let angle = CGFloat.random(in: 0...(.pi), using: &generator)
+                guard let gradient = CGGradient(colorsSpace: space, colors: disc, locations: [0, 0.65, 1])
+                else { continue }
+                wrapped(center.x, reach: radius) { x in
+                    cg.saveGState()
+                    cg.translateBy(x: x, y: center.y)
+                    cg.rotate(by: angle)
+                    cg.scaleBy(x: 1, y: squash)
                     cg.drawRadialGradient(
                         gradient, startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: radius,
                         options: [])
+                    cg.restoreGState()
                 }
-                cg.restoreGState()
             }
         }
         return image.cgImage
