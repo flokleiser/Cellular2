@@ -1,8 +1,7 @@
-- [x] app icon
-- [x] journey of the protein not correct
-- [x] cell sizes
+# Todo Flo
 
-- [ ] Nucleus & Ribosomes less opaque
+- [x] panel always down
 
-- [ ] panel always down
+--- 
+# Todo Matthieu
 - [ ] New descriptions for the organelles

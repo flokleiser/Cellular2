@@ -62,11 +62,8 @@ struct LookTarget: View {
                     }
                 }
                 .frame(height: reserve, alignment: .bottom)
-            RoundedRectangle(cornerRadius: side / 4)
-                .fill(.white.opacity(0.12))
-                .hoverEffect { effect, isActive, _ in
-                    effect.opacity(isActive ? 1 : 0)
-                }
+            // Invisible: only here so gaze and drags land on something over the organelle.
+            Color.clear
                 .frame(width: side, height: side)
                 .contentShape(.hoverEffect, .rect(cornerRadius: side / 4))
                 .contentShape(.rect(cornerRadius: side / 4))
