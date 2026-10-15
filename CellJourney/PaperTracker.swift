@@ -82,7 +82,7 @@ final class PaperTracker {
 
         // A faint sheen over the picture shows it has been found, and lights up when looked at.
         var material = UnlitMaterial(color: .white)
-        material.blending = .transparent(opacity: 0.18)
+        material.blending = .transparent(opacity: 0.08)
         let sheen = ModelEntity(
             mesh: .generatePlane(width: width, depth: depth, cornerRadius: 0.01), materials: [material])
         sheen.position.y = 0.002
