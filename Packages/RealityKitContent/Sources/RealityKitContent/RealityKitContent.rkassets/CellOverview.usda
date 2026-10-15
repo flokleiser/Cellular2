@@ -109,6 +109,24 @@ def Xform "Root"
         float3 xformOp:scale = (0.01, 0.01, 0.01)
         float3 xformOp:translate = (-20.16799, 0, 56.37893)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+        over "Materials"
+        {
+            over "Material_007"
+            {
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+
+            over "Material_008"
+            {
+                token cullMode = "none" (
+                    allowedTokens = ["unspecified", "none", "front", "back"]
+                )
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+        }
     }
 
     def "Ribosomes_New2" (
@@ -124,6 +142,7 @@ def Xform "Root"
 
     def "Nucleus" (
         active = true
+        prepend apiSchemas = ["MaterialBindingAPI"]
         references = @Nucleus.usdz@
     )
     {
@@ -131,6 +150,27 @@ def Xform "Root"
         float3 xformOp:scale = (0.01, 0.01, 0.01)
         float3 xformOp:translate = (-20.169632, 0, 56.380104)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+        over "Materials"
+        {
+            over "Material_004"
+            {
+                token cullMode = "none" (
+                    allowedTokens = ["unspecified", "none", "front", "back"]
+                )
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+
+            over "Material_027"
+            {
+                token cullMode = "unspecified" (
+                    allowedTokens = ["unspecified", "none", "front", "back"]
+                )
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
+        }
     }
 
     def "Golgi_New" (

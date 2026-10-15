@@ -92,7 +92,7 @@ struct LookTarget: View {
     }
 }
 
-/// One panel for the whole journey: the intro card above the cell morphs into the progress banner below it.
+/// One panel for the whole journey, below the cell: the intro card morphs into the progress banner.
 struct JourneyPanel: View {
     let model: AppModel
     let onReset: () -> Void

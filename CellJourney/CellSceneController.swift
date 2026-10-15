@@ -344,13 +344,6 @@ final class CellSceneController {
         model.phase = .scatter
         // Stays grabbable so it can be turned; the tap highlight is only for the intro.
         setInteractive(membraneHolder, true, hover: false)
-        // The intro card glides from above the cell to below it while its content morphs into the progress banner.
-        panelHolder.move(
-            to: Transform(translation: panelSpot(for: .scatter)),
-            relativeTo: root,
-            duration: 1.1,
-            timingFunction: .easeInOut
-        )
         scatterAll(duration: 1.6)
         Task {
             try? await Task.sleep(for: .milliseconds(1700))
@@ -433,7 +426,18 @@ final class CellSceneController {
         let destination: SIMD3<Float>
         switch spec.destination {
         case .organelle(let kind):
-            destination = OrganelleCatalog.spec(for: kind).slot * unit
+            // Dock on the near side of the target instead of its centre. The ER shares the nucleus slot,
+            // so aiming at the centre would send the protein back into the nucleus.
+            let center = OrganelleCatalog.spec(for: kind).slot * unit
+            let half = simd_max(extents[kind] ?? .zero, SIMD3<Float>(repeating: 0.14)) / 2
+            let toSource = surface - center
+            if simd_length(toSource) > 0.001 {
+                let direction = simd_normalize(toSource)
+                let reach = 1 / simd_length(direction / half)
+                destination = center + direction * min(reach * 0.85, simd_length(toSource))
+            } else {
+                destination = center
+            }
         case .outsideCell:
             destination = outward * cellRadius * 1.6
         case .energizeProtein:
@@ -593,32 +597,29 @@ final class CellSceneController {
         let scale = model?.cellScale ?? 1
         scatterRoot.position = cellRoot.position
         scatterRoot.scale = SIMD3<Float>(repeating: scale)
-        panelHolder.position = panelSpot(for: model?.phase ?? .intro)
+        panelHolder.position = panelSpot()
     }
 
-    /// Above the cell for the intro card, below it for the progress banner.
-    /// The point where the panel touches the cell: its bottom edge for the intro card, its top edge for the banner.
-    private func panelSpot(for phase: Phase) -> SIMD3<Float> {
+    /// Below the cell, where the panel's top edge touches it. The intro card and the progress banner share it.
+    private func panelSpot() -> SIMD3<Float> {
         let scale = model?.cellScale ?? 1
         let center = cellRoot.position
         let radius = cellRadius * scale
-        if phase == .intro {
-            return center + SIMD3<Float>(0, radius + 0.04, 0)
-        }
-        let below = center + SIMD3<Float>(0, -(radius + 0.04), 0.1)
+        // Tucked up against the lower part of the cell, pulled forward so the membrane does not cut through it.
+        let below = center + SIMD3<Float>(0, -(radius - 0.12 * scale), radius * 0.6)
         var spot = below + (immersedHUD - below) * Self.smoothstep(1.5, 3.5, scale)
         spot.y = max(spot.y, 0.5 + panelHeight)
         return spot
     }
 
     /// Hangs the panel off `panelHolder` by its edge, so it hugs the cell whatever height its content has.
-    /// Eased per frame so the switch from bottom edge to top edge during the morph is smooth.
+    /// Eased per frame so the panel grows and shrinks smoothly downwards while its content morphs.
     private func pinPanelEdge() {
-        guard let model, let panelEntity else { return }
+        guard let panelEntity else { return }
         let height = panelEntity.visualBounds(relativeTo: panelHolder).extents.y
         guard height > 0 else { return }
         panelHeight = height
-        let target = model.phase == .intro ? height / 2 : -height / 2
+        let target = -height / 2
         // Snap on the first measurement so the intro card does not slide into place on launch.
         let ease: Float = panelEntity.position.y == 0 ? 1 : 0.15
         panelEntity.position.y += (target - panelEntity.position.y) * ease
