@@ -28,6 +28,10 @@ final class CellSceneController {
     static let minScale: Float = 0.5
     static let maxScale: Float = 20
     private static let turnPerMeter: Float = 4
+    /// How quickly a released cell stops turning, per second. Higher stops sooner.
+    private static let spinFriction: Float = 2.5
+    /// Fastest a flick can set the cell turning, in radians per second.
+    private static let maxSpin: Float = 10
     /// true: Cellmembrane.usdz with its own material. false: Cell_Membrane with the see-through material made in code.
 //    private static let useCustomMembrane = true
 //    private static let useCustomMembrane = false
@@ -37,8 +41,9 @@ final class CellSceneController {
 
     private let cellHome = SIMD3<Float>(0, 1.45, -2.0)
     private let immersiveCenter = SIMD3<Float>(0, 1.45, 0)
-    /// Once big, the cell hangs in front and above: its lowest point ends up this far above eye level.
-    private let overheadClearance: Float = 0.6
+    /// How high the big cell ends up: its lowest point sits this many meters above eye level.
+    /// 0 puts the bottom at eye height, negative values bring it lower still (it then starts to cover the panel).
+    private let overheadClearance: Float = 0.2
     /// How far back the cell moves per meter it grows. Below 1 its front creeps towards the viewer, so at full size
     /// it reaches over their head.
     private let growBack: Float = 0.95
@@ -68,6 +73,11 @@ final class CellSceneController {
     private var drags: [ObjectIdentifier: (position: SIMD3<Float>, pointer: SIMD3<Float>)] = [:]
     private var magnifyStart: Float?
     private var turnStart: (orientation: simd_quatf, pointer: SIMD3<Float>)?
+    /// Latest turn of the drag in progress (spin, tip in radians) and how fast it is changing.
+    private var turnSample: (angles: SIMD2<Float>, time: Date)?
+    private var turnVelocity = SIMD2<Float>.zero
+    /// Keeps the cell turning after the drag lets go, slowing down until it stops.
+    private var spinVelocity = SIMD2<Float>.zero
     private var epoch = 0
     private var unit: Float = 0.1
     private var cellRadius: Float = 0.675
@@ -85,6 +95,7 @@ final class CellSceneController {
             MainActor.assumeIsolated {
                 self?.pinPanelEdge()
                 self?.driftCrowd(by: Float(event.deltaTime))
+                self?.coast(by: Float(event.deltaTime))
             }
         }
         root.addChild(cellRoot)
@@ -269,6 +280,9 @@ final class CellSceneController {
 
     func dragEnded(_ value: EntityTargetValue<DragGesture.Value>) {
         drags[ObjectIdentifier(value.entity)] = nil
+        if turnStart != nil {
+            releaseTurn(value)
+        }
         turnStart = nil
         guard let kind = OrganelleKind(rawValue: value.entity.name) else { return }
         release(kind)
@@ -315,6 +329,7 @@ final class CellSceneController {
         let start = magnifyStart ?? model.cellScale
         magnifyStart = start
         turnStart = nil
+        spinVelocity = .zero
         let factor = powf(Float(value.magnification), 1.6)
         setCellScale(start * factor)
     }
@@ -329,17 +344,61 @@ final class CellSceneController {
         guard let model, magnifyStart == nil else { return }
         let pointer = value.convert(value.location3D, from: .local, to: .scene)
         if turnStart == nil {
+            // Grabbing a cell that is still coasting catches it.
+            spinVelocity = .zero
+            turnVelocity = .zero
+            turnSample = nil
             turnStart = (cellRoot.orientation, pointer)
         }
         guard let start = turnStart else { return }
         let delta = pointer - start.pointer
         // From inside the cell you grab the far wall, so the directions flip to keep it following your hand.
         let sign: Float = model.immersion > 0.5 ? -1 : 1
-        let spin = simd_quatf(
-            angle: sign * delta.x * Self.turnPerMeter, axis: SIMD3<Float>(0, 1, 0))
-        let tip = simd_quatf(
-            angle: -sign * delta.y * Self.turnPerMeter, axis: SIMD3<Float>(1, 0, 0))
-        cellRoot.orientation = simd_normalize(spin * tip * start.orientation)
+        let angles = SIMD2<Float>(sign * delta.x, -sign * delta.y) * Self.turnPerMeter
+        if let last = turnSample {
+            let seconds = Float(value.time.timeIntervalSince(last.time))
+            if seconds > 0.001 {
+                // Smoothed, so one jittery hand sample does not decide the flick.
+                turnVelocity += ((angles - last.angles) / seconds - turnVelocity) * 0.5
+            }
+        }
+        turnSample = (angles, value.time)
+        cellRoot.orientation = simd_normalize(Self.turn(by: angles) * start.orientation)
+    }
+
+    /// Sends the cell on as if the hand had kept going. SwiftUI predicts where a flick would have ended; coasting
+    /// with friction covers exactly that leftover turn when it starts at leftover × friction. A hand that came to
+    /// rest gets no prediction, so the cell stays put.
+    private func releaseTurn(_ value: EntityTargetValue<DragGesture.Value>) {
+        defer { turnSample = nil }
+        let sign: Float = (model?.immersion ?? 0) > 0.5 ? -1 : 1
+        let now = value.convert(value.location3D, from: .local, to: .scene)
+        let predicted = value.convert(value.predictedEndLocation3D, from: .local, to: .scene)
+        let leftover = predicted - now
+        var velocity = SIMD2<Float>(sign * leftover.x, -sign * leftover.y) * Self.turnPerMeter * Self.spinFriction
+        // Fall back on the speed measured during the drag when the system offers no prediction, as long as the
+        // hand was still moving just before letting go.
+        if simd_length(velocity) < 0.05, let last = turnSample, Date().timeIntervalSince(last.time) < 0.25 {
+            velocity = turnVelocity
+        }
+        let speed = simd_length(velocity)
+        spinVelocity = speed > Self.maxSpin ? velocity / speed * Self.maxSpin : velocity
+        print("[Spin] predicted \(leftover), measured \(turnVelocity), coasting at \(spinVelocity)")
+    }
+
+    private func coast(by seconds: Float) {
+        guard turnStart == nil, spinVelocity != .zero else { return }
+        cellRoot.orientation = simd_normalize(Self.turn(by: spinVelocity * seconds) * cellRoot.orientation)
+        spinVelocity *= exp(-Self.spinFriction * seconds)
+        if simd_length(spinVelocity) < 0.02 {
+            spinVelocity = .zero
+        }
+    }
+
+    /// Sideways spins the cell around the vertical, up and down tips it towards or away from the viewer.
+    private static func turn(by angles: SIMD2<Float>) -> simd_quatf {
+        simd_quatf(angle: angles.x, axis: SIMD3<Float>(0, 1, 0))
+            * simd_quatf(angle: angles.y, axis: SIMD3<Float>(1, 0, 0))
     }
 
     func reset() {
@@ -357,6 +416,7 @@ final class CellSceneController {
         drags.removeAll()
         magnifyStart = nil
         turnStart = nil
+        spinVelocity = .zero
         model.placedKinds = []
         model.openInfo = []
         model.hint = nil
