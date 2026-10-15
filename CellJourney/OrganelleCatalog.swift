@@ -87,8 +87,10 @@ enum OrganelleCatalog {
             shortName: "endoplasmic reticulum",
             role: "A folded network of membranes. New proteins slip inside, fold into their 3D shape and are quality-checked before they move on.",
             caption: "The endoplasmic reticulum folded the new protein into shape.",
-            slot: SIMD3<Float>(0.0, 0.7, -0.3),
-            fit: 0.7,
+            // Wraps around the nucleus the way the model was authored: the nucleus sits high up inside it, so the ER's
+            // centre is below and behind the nucleus slot. Keep this in step with `fit` when changing either.
+            slot: SIMD3<Float>(-0.05, -0.08, -0.56),
+            fit: 0.9,
             scatterAngle: 306,
             scatterTilt: simd_quatf(angle: -0.5, axis: SIMD3<Float>(0, 1, 0)),
             proteinColor: UIColor(red: 0.35, green: 0.85, blue: 1.0, alpha: 1),

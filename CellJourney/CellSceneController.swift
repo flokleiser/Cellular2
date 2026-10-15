@@ -26,7 +26,7 @@ final class CellSceneController {
 
     private static let cellDiameter: Float = 1.35
     static let minScale: Float = 0.5
-    static let maxScale: Float = 8
+    static let maxScale: Float = 14
     private static let turnPerMeter: Float = 4
     /// true: Cellmembrane.usdz with its own material. false: Cell_Membrane with the see-through material made in code.
 //    private static let useCustomMembrane = true
@@ -37,7 +37,12 @@ final class CellSceneController {
 
     private let cellHome = SIMD3<Float>(0, 1.45, -2.0)
     private let immersiveCenter = SIMD3<Float>(0, 1.45, 0)
-    private let immersedHUD = SIMD3<Float>(0, 1.15, -0.9)
+    /// Once big, the cell hangs in front and above: its lowest point ends up this far above eye level.
+    private let overheadClearance: Float = 0.6
+    /// How far back the cell moves per meter it grows. Below 1 its front creeps towards the viewer, so at full size
+    /// it reaches over their head.
+    private let growBack: Float = 0.95
+    private static let skyRadius: Float = 60
     private let scatterGap: Float = 0.12
 
     private let root = Entity()
@@ -578,8 +583,12 @@ final class CellSceneController {
         let scale = min(max(requested, Self.minScale), Self.maxScale)
         model.cellScale = scale
         cellRoot.scale = SIMD3<Float>(repeating: scale)
-        let travel = Self.smoothstep(1.5, 3.5, scale)
-        cellRoot.position = cellHome + (immersiveCenter - cellHome) * travel
+        // Grows up and away from its base, so it never swallows the viewer or the panel below it, and its base
+        // lifts above eye level on the way.
+        let grown = max(scale - 1, 0) * cellRadius
+        let lift = (immersiveCenter.y + overheadClearance - (cellHome.y - cellRadius))
+            * Self.smoothstep(1, 3.5, scale)
+        cellRoot.position = cellHome + SIMD3<Float>(0, grown + lift, -growBack * grown)
         layoutAroundCell()
         let immersion = Self.smoothstep(3.0, 6.0, scale)
         model.immersion = immersion
@@ -592,7 +601,7 @@ final class CellSceneController {
         }
     }
 
-    /// Keeps the scattered organelles and the panel attached to the cell as it grows.
+    /// Keeps the scattered organelles attached to the cell as it grows.
     private func layoutAroundCell() {
         let scale = model?.cellScale ?? 1
         scatterRoot.position = cellRoot.position
@@ -600,14 +609,11 @@ final class CellSceneController {
         panelHolder.position = panelSpot()
     }
 
-    /// Below the cell, where the panel's top edge touches it. The intro card and the progress banner share it.
+    /// Below the cell at its normal size, where the panel's top edge touches it. Stays put while the cell grows.
+    /// The intro card and the progress banner share it.
     private func panelSpot() -> SIMD3<Float> {
-        let scale = model?.cellScale ?? 1
-        let center = cellRoot.position
-        let radius = cellRadius * scale
         // Tucked up against the lower part of the cell, pulled forward so the membrane does not cut through it.
-        let below = center + SIMD3<Float>(0, -(radius - 0.12 * scale), radius * 0.6)
-        var spot = below + (immersedHUD - below) * Self.smoothstep(1.5, 3.5, scale)
+        var spot = cellHome + SIMD3<Float>(0, -(cellRadius - 0.12), cellRadius * 0.6)
         spot.y = max(spot.y, 0.5 + panelHeight)
         return spot
     }
@@ -721,11 +727,11 @@ final class CellSceneController {
         } else {
             material.color = .init(tint: UIColor(red: 0.05, green: 0.2, blue: 0.3, alpha: 1))
         }
-        let entity = ModelEntity(mesh: .generateSphere(radius: 20), materials: [material])
+        let entity = ModelEntity(mesh: .generateSphere(radius: Self.skyRadius), materials: [material])
         entity.name = "sky"
         entity.scale = SIMD3<Float>(-1, 1, 1)
         entity.position = immersiveCenter
-        entity.components.set(CollisionComponent(shapes: [.generateSphere(radius: 20)]))
+        entity.components.set(CollisionComponent(shapes: [.generateSphere(radius: Self.skyRadius)]))
         entity.components.set(OpacityComponent(opacity: 0))
         entity.isEnabled = false
         return entity
