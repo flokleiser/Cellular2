@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LauncherView: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var isOpening = false
@@ -19,6 +20,7 @@ struct LauncherView: View {
             Button {
                 Task {
                     isOpening = true
+                    model.prepareForEntry()
                     let result = await openImmersiveSpace(id: "cell")
                     if case .opened = result {
                         dismissWindow(id: "launcher")

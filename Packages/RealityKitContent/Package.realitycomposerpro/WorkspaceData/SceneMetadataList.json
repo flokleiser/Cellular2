@@ -3,14 +3,6 @@
     "objectMetadataList" : [
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
         "Icosphere_042"
       ],
@@ -30,7 +22,15 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_045"
+        "Icosphere_048"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root"
       ],
       {
         "isExpanded" : true,
@@ -39,7 +39,7 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_048"
+        "Icosphere_045"
       ],
       {
         "isExpanded" : true,
@@ -58,15 +58,6 @@
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
         "Icosphere_052"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root",
-        "Icosphere_050"
       ],
       {
         "isExpanded" : true,
@@ -98,6 +89,15 @@
       {
         "isExpanded" : true,
         "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root",
+        "Icosphere_050"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
       }
     ]
   },
@@ -106,8 +106,15 @@
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
         "Root",
-        "Untitled",
-        "Materials"
+        "Mitochondrion_New"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
+        "Root"
       ],
       {
         "isExpanded" : true,
@@ -125,16 +132,9 @@
       },
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
-        "Root"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
         "Root",
-        "Mitochondrion_New"
+        "Untitled",
+        "Materials"
       ],
       {
         "isExpanded" : true,

@@ -1,7 +1,8 @@
 # Todo Flo
 
-- [x] panel always down
+- [ ] panel abit more down
+- [ ] ER too big now
+- [ ] Info button on the left for organelles on the left
 
---- 
-# Todo Matthieu
-- [ ] New descriptions for the organelles
+
+

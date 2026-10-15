@@ -121,6 +121,13 @@ struct JourneyPanel: View {
         return model.caption
     }
 
+    private var startLabel: String {
+        if !model.waitingForPaper {
+            return "Tap the cell to begin"
+        }
+        return model.paperFound ? "Tap the picture to begin" : "Open the book to the picture of the cell"
+    }
+
     private var isIntro: Bool {
         model.phase == .intro
     }
@@ -150,7 +157,7 @@ struct JourneyPanel: View {
             Text("A protein is built, folded, packaged and shipped by a team of organelles. Take the cell apart, then put it back together in the right order.")
                 .font(.title3)
                 .multilineTextAlignment(.center)
-            Label("Tap the cell to begin", systemImage: "hand.tap")
+            Label(startLabel, systemImage: model.waitingForPaper ? "book" : "hand.tap")
                 .font(.title2.bold())
                 .foregroundStyle(.tint)
         }

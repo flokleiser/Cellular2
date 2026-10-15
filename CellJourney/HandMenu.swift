@@ -48,6 +48,10 @@ final class HandMenuController {
         panelAnchor.isEnabled = model.showDebug
     }
 
+    func stop() {
+        session.stop()
+    }
+
     /// Runs until the immersive space closes. Falls back to a HUD button when hand tracking is unavailable (e.g. simulator).
     func run(model: AppModel) async {
         guard HandTrackingProvider.isSupported else {

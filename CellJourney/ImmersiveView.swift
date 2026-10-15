@@ -8,12 +8,14 @@ struct ImmersiveView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var controller = CellSceneController()
     @State private var handMenu = HandMenuController()
+    @State private var paper = PaperTracker()
 
     var body: some View {
         RealityView { content, _ in
             model.resetProgress()
             content.add(handMenu.buttonAnchor)
             content.add(handMenu.panelAnchor)
+            content.add(paper.target)
             await controller.load(into: content, model: model)
         } update: { _, attachments in
             if model.sceneReady {
@@ -37,6 +39,7 @@ struct ImmersiveView: View {
                 handMenu.mountPanel(debug)
             }
             handMenu.applyState(model: model)
+            paper.applyState(model: model)
         } attachments: {
             Attachment(id: "panel") {
                 JourneyPanel(
@@ -105,6 +108,21 @@ struct ImmersiveView: View {
         .task {
             await handMenu.run(model: model)
         }
+        .task {
+            await paper.run(model: model)
+        }
+        .onChange(of: model.waitingForPaper) { _, waiting in
+            if !waiting {
+                paper.stop()
+            }
+        }
+        .onDisappear {
+            // Ending the tasks does not stop the ARKit sessions, so they are stopped here.
+            paper.stop()
+            handMenu.stop()
+            // Also when the system closed the space (Digital Crown), so reopening the app finds a window.
+            openWindow(id: "launcher")
+        }
         .onChange(of: model.wantsFullImmersion) { _, wantsFull in
             if wantsFull {
                 immersionStyle = .full
@@ -114,8 +132,8 @@ struct ImmersiveView: View {
         }
     }
 
+    /// The launcher comes back in `onDisappear`.
     private func leave() {
-        openWindow(id: "launcher")
         Task {
             await dismissImmersiveSpace()
         }

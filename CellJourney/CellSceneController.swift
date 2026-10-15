@@ -26,7 +26,7 @@ final class CellSceneController {
 
     private static let cellDiameter: Float = 1.35
     static let minScale: Float = 0.5
-    static let maxScale: Float = 14
+    static let maxScale: Float = 20
     private static let turnPerMeter: Float = 4
     /// true: Cellmembrane.usdz with its own material. false: Cell_Membrane with the see-through material made in code.
 //    private static let useCustomMembrane = true
@@ -52,6 +52,10 @@ final class CellSceneController {
     private let panelHolder = Entity()
     private let cellDrawOrder = ModelSortGroup(depthPass: nil)
     private var sky: ModelEntity?
+    /// Other cells drifting far off around the viewer, shown together with the sky.
+    private let crowdRoot = Entity()
+    private var crowd: [(entity: Entity, spin: simd_quatf)] = []
+    private var crowdTemplate: Entity?
 
     private var organelles: [OrganelleKind: Entity] = [:]
     private var extents: [OrganelleKind: SIMD3<Float>] = [:]
@@ -77,9 +81,10 @@ final class CellSceneController {
         isLoaded = true
 
         content.add(root)
-        panelSubscription = content.subscribe(to: SceneEvents.Update.self) { [weak self] _ in
+        panelSubscription = content.subscribe(to: SceneEvents.Update.self) { [weak self] event in
             MainActor.assumeIsolated {
                 self?.pinPanelEdge()
+                self?.driftCrowd(by: Float(event.deltaTime))
             }
         }
         root.addChild(cellRoot)
@@ -98,6 +103,7 @@ final class CellSceneController {
             if !Self.useCustomMembrane {
                 Self.makeTransparent(visual)
             }
+            crowdTemplate = visual.clone(recursive: true)
             if Self.forceOrganellesBeforeMembrane {
                 Self.setDrawOrder(visual, group: cellDrawOrder, order: 1)
             }
@@ -136,6 +142,8 @@ final class CellSceneController {
         let skyEntity = makeSky()
         root.addChild(skyEntity)
         sky = skyEntity
+        makeCrowd()
+        root.addChild(crowdRoot)
 
         layoutAroundCell()
         setInteractive(membraneHolder, true, hover: true)
@@ -153,7 +161,10 @@ final class CellSceneController {
         guard infoButtons[kind] == nil, let wrapper = organelles[kind] else { return }
         infoButtons[kind] = entity
         entity.components.set(BillboardComponent())
-        entity.position = scatteredOffset(for: kind, toward: SIMD3<Float>(1, 0, 0), gap: 0.08)
+        // On the outer side, so it is not squeezed between the organelle and the cell.
+        let angle = OrganelleCatalog.spec(for: kind).scatterAngle * .pi / 180
+        let side: Float = cos(angle) < -0.01 ? -1 : 1
+        entity.position = scatteredOffset(for: kind, toward: SIMD3<Float>(side, 0, 0), gap: 0.08)
         wrapper.addChild(entity)
     }
 
@@ -192,6 +203,7 @@ final class CellSceneController {
     func applyState() {
         guard let model, model.sceneReady else { return }
         let phase = model.phase
+        cellRoot.isEnabled = !model.waitingForPaper
         for spec in OrganelleCatalog.order {
             let kind = spec.kind
             let visible = phase == .scatter && !model.placedKinds.contains(kind)
@@ -201,8 +213,37 @@ final class CellSceneController {
     }
 
     func handleTap(on entity: Entity) {
-        guard let model, model.phase == .intro, entity.name == "cell" else { return }
-        beginScatter()
+        guard let model, model.phase == .intro else { return }
+        if model.waitingForPaper {
+            if entity.name == "paper" {
+                popOut(of: entity)
+            }
+        } else if entity.name == "cell" {
+            beginScatter()
+        }
+    }
+
+    /// The cell grows out of the tapped picture and floats up to its usual spot, then comes apart.
+    private func popOut(of paper: Entity) {
+        guard let model else { return }
+        epoch += 1
+        let token = epoch
+        model.waitingForPaper = false
+        let orientation = cellRoot.orientation
+        cellRoot.transform = Transform(
+            scale: SIMD3<Float>(repeating: 0.02), rotation: orientation,
+            translation: paper.position(relativeTo: root))
+        cellRoot.move(
+            to: Transform(scale: .one, rotation: orientation, translation: cellHome),
+            relativeTo: root,
+            duration: 1.8,
+            timingFunction: .easeOut
+        )
+        Task {
+            try? await Task.sleep(for: .milliseconds(2800))
+            guard token == epoch else { return }
+            beginScatter()
+        }
     }
 
     func dragChanged(_ value: EntityTargetValue<DragGesture.Value>) {
@@ -594,6 +635,8 @@ final class CellSceneController {
         model.immersion = immersion
         sky?.isEnabled = immersion > 0.001
         sky?.components.set(OpacityComponent(opacity: immersion))
+        crowdRoot.isEnabled = immersion > 0.001
+        crowdRoot.components.set(OpacityComponent(opacity: immersion))
         if model.wantsFullImmersion {
             model.wantsFullImmersion = immersion > 0.85
         } else {
@@ -719,13 +762,13 @@ final class CellSceneController {
 
     private func makeSky() -> ModelEntity {
         var material = UnlitMaterial()
-        if let image = Self.cytoplasmImage(),
+        if let image = Self.bodyImage(),
             let texture = try? TextureResource.generate(
                 from: image, options: .init(semantic: .color))
         {
             material.color = .init(tint: .white, texture: .init(texture))
         } else {
-            material.color = .init(tint: UIColor(red: 0.05, green: 0.2, blue: 0.3, alpha: 1))
+            material.color = .init(tint: UIColor(red: 0.3, green: 0.03, blue: 0.05, alpha: 1))
         }
         let entity = ModelEntity(mesh: .generateSphere(radius: Self.skyRadius), materials: [material])
         entity.name = "sky"
@@ -737,34 +780,108 @@ final class CellSceneController {
         return entity
     }
 
-    private static func cytoplasmImage() -> CGImage? {
+    /// Copies of the membrane scattered far away, so the viewer is one cell among many in the body.
+    private func makeCrowd() {
+        guard let template = crowdTemplate else { return }
+        var generator = SeededGenerator(seed: 11)
+        let count = 10
+        crowdRoot.position = immersiveCenter
+        crowdRoot.isEnabled = false
+        for index in 0..<count {
+            // Spread evenly around the viewer, jittered so they do not read as a ring.
+            let yaw = Float(index) / Float(count) * 2 * .pi + .random(in: -0.25...0.25, using: &generator)
+            let pitch = Float.random(in: -0.4...0.5, using: &generator)
+            let distance = Float.random(in: 38...52, using: &generator)
+            let direction = SIMD3<Float>(cos(pitch) * sin(yaw), sin(pitch), -cos(pitch) * cos(yaw))
+            let cell = template.clone(recursive: true)
+            let holder = Entity()
+            holder.position = direction * distance
+            holder.scale = SIMD3<Float>(repeating: .random(in: 4...7, using: &generator))
+            holder.orientation = simd_quatf(
+                angle: .random(in: 0...(2 * .pi), using: &generator), axis: Self.randomAxis(&generator))
+            holder.addChild(cell)
+            crowdRoot.addChild(holder)
+            let spin = simd_quatf(angle: .random(in: 0.03...0.08, using: &generator), axis: Self.randomAxis(&generator))
+            crowd.append((holder, spin))
+        }
+    }
+
+    /// Each distant cell tumbles slowly, and the whole crowd circles the viewer very slowly.
+    private func driftCrowd(by seconds: Float) {
+        guard crowdRoot.isEnabled else { return }
+        crowdRoot.orientation = simd_normalize(
+            simd_quatf(angle: 0.01 * seconds, axis: SIMD3<Float>(0, 1, 0)) * crowdRoot.orientation)
+        for (entity, spin) in crowd {
+            entity.orientation = simd_normalize(
+                simd_quatf(angle: spin.angle * seconds, axis: spin.axis) * entity.orientation)
+        }
+    }
+
+    private static func randomAxis(_ generator: inout SeededGenerator) -> SIMD3<Float> {
+        simd_normalize(SIMD3<Float>(
+            .random(in: -1...1, using: &generator),
+            .random(in: -1...1, using: &generator),
+            .random(in: -1...1, using: &generator)) + SIMD3<Float>(0, 0.001, 0))
+    }
+
+    /// The inside of the body: deep reds, soft glowing patches, and red blood cells drifting far away.
+    private static func bodyImage() -> CGImage? {
         let size = CGSize(width: 2048, height: 1024)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let space = CGColorSpaceCreateDeviceRGB()
         let image = renderer.image { context in
             let cg = context.cgContext
             let colors =
                 [
-                    UIColor(red: 0.10, green: 0.42, blue: 0.55, alpha: 1).cgColor,
-                    UIColor(red: 0.04, green: 0.16, blue: 0.30, alpha: 1).cgColor,
-                    UIColor(red: 0.02, green: 0.07, blue: 0.16, alpha: 1).cgColor,
+                    UIColor(red: 0.55, green: 0.10, blue: 0.12, alpha: 1).cgColor,
+                    UIColor(red: 0.32, green: 0.03, blue: 0.06, alpha: 1).cgColor,
+                    UIColor(red: 0.12, green: 0.01, blue: 0.03, alpha: 1).cgColor,
                 ] as CFArray
-            if let gradient = CGGradient(
-                colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.5, 1])
-            {
+            if let gradient = CGGradient(colorsSpace: space, colors: colors, locations: [0, 0.5, 1]) {
                 cg.drawLinearGradient(
                     gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
             }
             var generator = SeededGenerator(seed: 7)
-            for _ in 0..<900 {
-                let radius = CGFloat.random(in: 4...26, using: &generator)
-                let x = CGFloat.random(in: 0...size.width, using: &generator)
-                let y = CGFloat.random(in: 0...size.height, using: &generator)
-                let alpha = CGFloat.random(in: 0.03...0.12, using: &generator)
-                cg.setFillColor(UIColor(white: 1, alpha: alpha).cgColor)
-                cg.fillEllipse(
-                    in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
+            // Soft light and shadow in the tissue.
+            for _ in 0..<60 {
+                let radius = CGFloat.random(in: 60...220, using: &generator)
+                let center = CGPoint(
+                    x: .random(in: 0...size.width, using: &generator),
+                    y: .random(in: 0...size.height, using: &generator))
+                let light = Bool.random(using: &generator)
+                let tone = light
+                    ? UIColor(red: 0.95, green: 0.35, blue: 0.35, alpha: .random(in: 0.06...0.16, using: &generator))
+                    : UIColor(red: 0.08, green: 0.0, blue: 0.02, alpha: .random(in: 0.15...0.3, using: &generator))
+                let glow = [tone.cgColor, tone.withAlphaComponent(0).cgColor] as CFArray
+                if let gradient = CGGradient(colorsSpace: space, colors: glow, locations: [0, 1]) {
+                    cg.drawRadialGradient(
+                        gradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: radius,
+                        options: [])
+                }
+            }
+            // Red blood cells: discs with a darker dimple, blurred by distance.
+            for _ in 0..<160 {
+                let radius = CGFloat.random(in: 5...18, using: &generator)
+                let center = CGPoint(
+                    x: .random(in: 0...size.width, using: &generator),
+                    y: .random(in: size.height * 0.15...size.height * 0.85, using: &generator))
+                let alpha = CGFloat.random(in: 0.25...0.6, using: &generator)
+                let squash = CGFloat.random(in: 0.45...1, using: &generator)
+                let rim = UIColor(red: 0.85, green: 0.12, blue: 0.14, alpha: alpha)
+                let dimple = UIColor(red: 0.45, green: 0.04, blue: 0.07, alpha: alpha)
+                let disc = [dimple.cgColor, rim.cgColor, rim.withAlphaComponent(0).cgColor] as CFArray
+                cg.saveGState()
+                cg.translateBy(x: center.x, y: center.y)
+                cg.rotate(by: .random(in: 0...(.pi), using: &generator))
+                cg.scaleBy(x: 1, y: squash)
+                if let gradient = CGGradient(colorsSpace: space, colors: disc, locations: [0, 0.65, 1]) {
+                    cg.drawRadialGradient(
+                        gradient, startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: radius,
+                        options: [])
+                }
+                cg.restoreGState()
             }
         }
         return image.cgImage

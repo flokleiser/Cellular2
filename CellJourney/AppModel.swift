@@ -10,7 +10,14 @@ enum Phase {
 @MainActor
 @Observable
 final class AppModel {
+    /// true: the journey starts by tapping a printed picture, and the cell pops out of it (see PaperTracker).
+    /// false: the cell is already there and you tap it to begin.
+    static let startFromPaper = true
+
     var phase: Phase = .intro
+    /// The cell stays hidden until the picture is tapped. Cleared right away when the picture can't be looked for.
+    var waitingForPaper = AppModel.startFromPaper
+    var paperFound = false
     var placedKinds: Set<OrganelleKind> = []
     var openInfo: Set<OrganelleKind> = []
     var hint: String?
@@ -45,6 +52,13 @@ final class AppModel {
                 hint = nil
             }
         }
+    }
+
+    /// Called before the immersive space opens, so the paper search never sees the last visit's state.
+    /// Not part of `resetProgress`, which runs alongside the search and could undo its fallback.
+    func prepareForEntry() {
+        waitingForPaper = Self.startFromPaper
+        paperFound = false
     }
 
     func resetProgress() {
