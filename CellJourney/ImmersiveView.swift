@@ -46,7 +46,6 @@ struct ImmersiveView: View {
                     model: model,
                     onReset: { controller.reset() },
                     onStep: { controller.stepBack(to: $0) },
-                    onDebug: { handMenu.togglePanel(model: model) },
                     onExit: { leave() }
                 )
             }
@@ -76,7 +75,7 @@ struct ImmersiveView: View {
                     LookTarget(
                         spec: OrganelleCatalog.spec(for: kind),
                         size: controller.lookTargetSize(for: kind),
-                        onDrag: { controller.dragOrganelle(kind, by: $0) },
+                        onDrag: { controller.dragOrganelle(kind, by: $0, grip: $1) },
                         onDragEnded: { controller.dragOrganelleEnded(kind) }
                     )
                 }

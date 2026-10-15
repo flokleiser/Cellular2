@@ -25,9 +25,13 @@ final class CellSceneController {
     weak var model: AppModel?
 
     private static let cellDiameter: Float = 1.35
+    /// The membrane's size relative to the organelles inside it. Above 1 leaves more room between them and the wall.
+    private static let membraneScale: Float = 1.2
     static let minScale: Float = 0.5
-    static let maxScale: Float = 20
+    static let maxScale: Float = 62
     private static let turnPerMeter: Float = 4
+    /// Stretches every protein and ATP animation; 2 runs them at half speed.
+    private static let proteinPace: Double = 2
     /// How quickly a released cell stops turning, per second. Higher stops sooner.
     private static let spinFriction: Float = 2.5
     /// Fastest a flick can set the cell turning, in radians per second.
@@ -47,7 +51,7 @@ final class CellSceneController {
     /// How far back the cell moves per meter it grows. Below 1 its front creeps towards the viewer, so at full size
     /// it reaches over their head.
     private let growBack: Float = 0.95
-    private static let skyRadius: Float = 60
+    private static let skyRadius: Float = 250
     private let scatterGap: Float = 0.12
 
     private let root = Entity()
@@ -71,8 +75,12 @@ final class CellSceneController {
     private var pulses: [Entity] = []
     private var proteinJob: Task<Void, Never>?
     private var drags: [ObjectIdentifier: (position: SIMD3<Float>, pointer: SIMD3<Float>)] = [:]
+    /// Held organelles turn with the hand: its rotation and the model's when the grip began, both in world space.
+    private var grips: [OrganelleKind: (hand: simd_quatf, model: simd_quatf)] = [:]
+    /// The model inside each organelle's wrapper, the part a hand turns.
+    private var visuals: [OrganelleKind: Entity] = [:]
     private var magnifyStart: Float?
-    private var turnStart: (orientation: simd_quatf, pointer: SIMD3<Float>)?
+    private var turnStart: (orientation: simd_quatf, pointer: SIMD3<Float>, pace: Float)?
     /// Latest turn of the drag in progress (spin, tip in radians) and how fast it is changing.
     private var turnSample: (angles: SIMD2<Float>, time: Date)?
     private var turnVelocity = SIMD2<Float>.zero
@@ -108,9 +116,9 @@ final class CellSceneController {
         if let membrane = await loadCentered(named: membraneName) {
             let largest = max(membrane.extents.x, membrane.extents.y, membrane.extents.z)
             unit = Self.cellDiameter / largest
-            cellRadius = Self.cellDiameter / 2
+            cellRadius = Self.cellDiameter / 2 * Self.membraneScale
             let visual = Entity()
-            visual.scale = SIMD3<Float>(repeating: unit)
+            visual.scale = SIMD3<Float>(repeating: unit * Self.membraneScale)
             visual.addChild(membrane.entity)
             if !Self.useCustomMembrane {
                 Self.makeTransparent(visual)
@@ -141,6 +149,7 @@ final class CellSceneController {
             let wrapper = Entity()
             wrapper.name = spec.kind.rawValue
             wrapper.addChild(visual)
+            visuals[spec.kind] = visual
 //            wrapper.components.set(transparencyComponent)
             let size = loaded.extents * scale
             extents[spec.kind] = size
@@ -174,19 +183,24 @@ final class CellSceneController {
         cos(OrganelleCatalog.spec(for: kind).scatterAngle * .pi / 180) < -0.01
     }
 
-    /// The info card's button sits just outside the organelle; the card hangs off it so it grows outward and down
-    /// without the button moving. The holder faces the user, so the offset is in screen directions.
+    /// The info card's button sits beside the organelle's resting spot; the card hangs off it so it grows outward
+    /// and down without the button moving. Pinned to the spot rather than the organelle, so grabbing or turning the
+    /// organelle never moves it. The holder faces the user, so the card's offset is in screen directions.
     func mountInfoCard(_ entity: Entity, kind: OrganelleKind) {
-        guard infoButtons[kind] == nil, let wrapper = organelles[kind] else { return }
+        guard infoButtons[kind] == nil, organelles[kind] != nil else { return }
+        let spec = OrganelleCatalog.spec(for: kind)
         let side: Float = Self.opensLeft(kind) ? -1 : 1
         let holder = Entity()
         holder.components.set(BillboardComponent())
-        holder.position = scatteredOffset(for: kind, toward: SIMD3<Float>(side, 0, 0), gap: 0.08)
+        // In front of the organelle's grab box and look target, so neither catches the taps meant for the button.
+        let beside = SIMD3<Float>(side, 0, 0) * (reach(of: kind, toward: SIMD3<Float>(side, 0, 0)) + spec.infoGap)
+        let ahead = SIMD3<Float>(0, 0, reach(of: kind, toward: SIMD3<Float>(0, 0, 1)) + 0.12)
+        holder.position = scatterTransform(for: spec).translation + beside + ahead
         let corner = InfoCard.inset + InfoCard.buttonSide / 2
         entity.position = SIMD3<Float>(
             side * (InfoCard.size.x / 2 - corner), -(InfoCard.size.y / 2 - corner), 0)
         holder.addChild(entity)
-        wrapper.addChild(holder)
+        scatterRoot.addChild(holder)
         infoButtons[kind] = holder
     }
 
@@ -210,16 +224,18 @@ final class CellSceneController {
     private func scatteredOffset(
         for kind: OrganelleKind, toward direction: SIMD3<Float>, gap: Float
     ) -> SIMD3<Float> {
+        let world = direction * (reach(of: kind, toward: direction) + gap) + SIMD3<Float>(0, 0, 0.05)
+        return OrganelleCatalog.spec(for: kind).scatterTilt.inverse.act(world)
+    }
+
+    /// How far a resting organelle's grab box reaches from its centre in a room direction.
+    private func reach(of kind: OrganelleKind, toward direction: SIMD3<Float>) -> Float {
         let spec = OrganelleCatalog.spec(for: kind)
         let half = simd_max(extents[kind] ?? .zero, SIMD3<Float>(repeating: 0.14)) / 2
-        let tilt = spec.scatterTilt
-        let rotation = simd_matrix3x3(tilt * spec.orientation)
-        let reach =
-            abs(simd_dot(rotation.columns.0, direction)) * half.x
+        let rotation = simd_matrix3x3(spec.scatterTilt * spec.orientation)
+        return abs(simd_dot(rotation.columns.0, direction)) * half.x
             + abs(simd_dot(rotation.columns.1, direction)) * half.y
             + abs(simd_dot(rotation.columns.2, direction)) * half.z
-        let world = direction * (reach + gap) + SIMD3<Float>(0, 0, 0.05)
-        return tilt.inverse.act(world)
     }
 
     func applyState() {
@@ -288,6 +304,7 @@ final class CellSceneController {
         }
         guard let state = drags[key] else { return }
         entity.position = state.position + (pointer - state.pointer)
+        turnWithHand(kind, grip: value.inputDevicePose3D.map { Self.realityRotation($0.rotation) })
     }
 
     func dragEnded(_ value: EntityTargetValue<DragGesture.Value>) {
@@ -298,6 +315,7 @@ final class CellSceneController {
         turnStart = nil
         guard let kind = OrganelleKind(rawValue: value.entity.name) else { return }
         model?.draggingKinds.remove(kind)
+        grips[kind] = nil
         release(kind)
     }
 
@@ -307,8 +325,9 @@ final class CellSceneController {
         model?.draggingKinds.insert(kind)
     }
 
-    /// Drag that starts on an organelle's look target. `translation` is in meters, in world space.
-    func dragOrganelle(_ kind: OrganelleKind, by translation: SIMD3<Float>) {
+    /// Drag that starts on an organelle's look target. `translation` is in meters, in world space; `grip` is the
+    /// pinching hand's rotation, when the system reports it.
+    func dragOrganelle(_ kind: OrganelleKind, by translation: SIMD3<Float>, grip: simd_quatf?) {
         guard let model, model.phase == .scatter, !model.placedKinds.contains(kind),
             let entity = organelles[kind]
         else { return }
@@ -319,12 +338,41 @@ final class CellSceneController {
         }
         guard let state = drags[key] else { return }
         entity.setPosition(state.position + translation, relativeTo: nil)
+        turnWithHand(kind, grip: grip)
+    }
+
+    /// Turns a held organelle by however much the hand has turned since it took hold.
+    private func turnWithHand(_ kind: OrganelleKind, grip: simd_quatf?) {
+        guard let grip, let visual = visuals[kind] else { return }
+        guard let start = grips[kind] else {
+            grips[kind] = (grip, visual.orientation(relativeTo: nil))
+            return
+        }
+        let turned = grip * start.hand.inverse
+        visual.setOrientation(simd_normalize(turned * start.model), relativeTo: nil)
+    }
+
+    /// SwiftUI's immersive space has y pointing down, RealityKit's up. Mirroring that axis flips the rotation
+    /// direction around x and z.
+    static func realityRotation(_ rotation: Rotation3D) -> simd_quatf {
+        let q = rotation.quaternion
+        return simd_normalize(simd_quatf(
+            ix: Float(-q.imag.x), iy: Float(q.imag.y), iz: Float(-q.imag.z), r: Float(q.real)))
+    }
+
+    /// Back to the orientation the organelle was modelled in, which is how it sits in the cell.
+    private func straighten(_ kind: OrganelleKind, duration: TimeInterval) {
+        guard let visual = visuals[kind] else { return }
+        var upright = visual.transform
+        upright.rotation = OrganelleCatalog.spec(for: kind).orientation
+        visual.move(to: upright, relativeTo: visual.parent, duration: duration, timingFunction: .easeInOut)
     }
 
     func dragOrganelleEnded(_ kind: OrganelleKind) {
         guard let entity = organelles[kind] else { return }
         drags[ObjectIdentifier(entity)] = nil
         model?.draggingKinds.remove(kind)
+        grips[kind] = nil
         release(kind)
     }
 
@@ -370,13 +418,13 @@ final class CellSceneController {
             spinVelocity = .zero
             turnVelocity = .zero
             turnSample = nil
-            turnStart = (cellRoot.orientation, pointer)
+            turnStart = (cellRoot.orientation, pointer, Self.turnPace(grabbing: pointer, from: immersiveCenter))
         }
         guard let start = turnStart else { return }
         let delta = pointer - start.pointer
         // From inside the cell you grab the far wall, so the directions flip to keep it following your hand.
         let sign: Float = model.immersion > 0.5 ? -1 : 1
-        let angles = SIMD2<Float>(sign * delta.x, -sign * delta.y) * Self.turnPerMeter
+        let angles = SIMD2<Float>(sign * delta.x, -sign * delta.y) * Self.turnPerMeter * start.pace
         if let last = turnSample {
             let seconds = Float(value.time.timeIntervalSince(last.time))
             if seconds > 0.001 {
@@ -397,7 +445,9 @@ final class CellSceneController {
         let now = value.convert(value.location3D, from: .local, to: .scene)
         let predicted = value.convert(value.predictedEndLocation3D, from: .local, to: .scene)
         let leftover = predicted - now
-        var velocity = SIMD2<Float>(sign * leftover.x, -sign * leftover.y) * Self.turnPerMeter * Self.spinFriction
+        let pace = turnStart?.pace ?? 1
+        var velocity = SIMD2<Float>(sign * leftover.x, -sign * leftover.y)
+            * Self.turnPerMeter * pace * Self.spinFriction
         // Fall back on the speed measured during the drag when the system offers no prediction, as long as the
         // hand was still moving just before letting go.
         if simd_length(velocity) < 0.05, let last = turnSample, Date().timeIntervalSince(last.time) < 0.25 {
@@ -415,6 +465,13 @@ final class CellSceneController {
         if simd_length(spinVelocity) < 0.02 {
             spinVelocity = .zero
         }
+    }
+
+    /// visionOS stretches an indirect drag with the distance to what was grabbed, so far-off things keep up with
+    /// the hand. Turning is undone by that distance, so the same hand movement turns a huge cell as much as the
+    /// normal one 2 m away.
+    private static func turnPace(grabbing point: SIMD3<Float>, from viewer: SIMD3<Float>) -> Float {
+        min(1, 2 / max(simd_distance(point, viewer), 0.1))
     }
 
     /// Sideways spins the cell around the vertical, up and down tips it towards or away from the viewer.
@@ -450,6 +507,7 @@ final class CellSceneController {
         }
         pulses.removeAll()
         drags.removeAll()
+        grips.removeAll()
         magnifyStart = nil
         turnStart = nil
         spinVelocity = .zero
@@ -459,7 +517,6 @@ final class CellSceneController {
         model.openInfo = []
         model.draggingKinds = []
         model.hint = nil
-        model.caption = index > 0 ? order[index - 1].caption : nil
         model.phase = .scatter
         sky?.components.remove(InputTargetComponent.self)
         setInteractive(membraneHolder, false, hover: false)
@@ -511,6 +568,7 @@ final class CellSceneController {
         for kind in kinds {
             let spec = OrganelleCatalog.spec(for: kind)
             guard let entity = organelles[kind] else { continue }
+            straighten(kind, duration: duration)
             entity.setParent(scatterRoot, preservingWorldTransform: true)
             entity.move(
                 to: scatterTransform(for: spec),
@@ -547,6 +605,7 @@ final class CellSceneController {
         model.openInfo.remove(kind)
         model.hint = nil
         setInteractive(entity, false, hover: false)
+        straighten(kind, duration: 0.6)
         entity.setParent(cellRoot, preservingWorldTransform: true)
         entity.move(
             to: Transform(scale: .one, translation: spec.slot * unit),
@@ -561,7 +620,6 @@ final class CellSceneController {
         let job = Task {
             await previous?.value
             guard token == epoch else { return }
-            model.caption = spec.caption
             await advanceProtein(for: spec, token: token)
         }
         proteinJob = job
@@ -576,7 +634,8 @@ final class CellSceneController {
         let start = spec.slot * unit
         let size = extents[spec.kind] ?? SIMD3<Float>(repeating: 0.2)
         let outward = simd_length(start) > 0.001 ? simd_normalize(start) : SIMD3<Float>(0, 1, 0)
-        let surface = start + outward * (max(size.x, max(size.y, size.z)) * 0.5 + 0.05)
+        // Organelles near the membrane would put this outside the cell, so it is kept inside.
+        let surface = insideCell(start + outward * (max(size.x, max(size.y, size.z)) * 0.5 + 0.05))
         let destination: SIMD3<Float>
         switch spec.destination {
         case .organelle(let kind):
@@ -588,7 +647,7 @@ final class CellSceneController {
             if simd_length(toSource) > 0.001 {
                 let direction = simd_normalize(toSource)
                 let reach = 1 / simd_length(direction / half)
-                destination = center + direction * min(reach * 0.85, simd_length(toSource))
+                destination = insideCell(center + direction * min(reach * 0.85, simd_length(toSource)))
             } else {
                 destination = center
             }
@@ -598,7 +657,12 @@ final class CellSceneController {
             await spreadEnergy(from: start, color: spec.proteinColor, token: token)
             return
         }
-        let middle = (surface + destination) / 2 + SIMD3<Float>(0, 0.08, 0)
+        // Every point stays inside, so the straight hops between them do too; only the trip out of the cell leaves.
+        let leaves: Bool
+        if case .outsideCell = spec.destination { leaves = true } else { leaves = false }
+        let middle = leaves
+            ? (surface + destination) / 2 + SIMD3<Float>(0, 0.08, 0)
+            : insideCell((surface + destination) / 2 + SIMD3<Float>(0, 0.08, 0))
 
         let ball: ModelEntity
         if let protein {
@@ -628,9 +692,16 @@ final class CellSceneController {
         }
     }
 
+    /// Pulls a point in cell space back inside the membrane, with a margin so the protein's halo stays in too.
+    private func insideCell(_ point: SIMD3<Float>) -> SIMD3<Float> {
+        let limit = cellRadius * 0.8
+        let distance = simd_length(point)
+        return distance > limit ? point / distance * limit : point
+    }
+
     /// Once the protein has left the cell it fades away.
     private func fadeOutProtein(_ ball: ModelEntity, token: Int) async {
-        let frames = 40
+        let frames = Int(40 * Self.proteinPace)
         for frame in 1...frames {
             guard token == epoch else { return }
             ball.components.set(OpacityComponent(opacity: 1 - Float(frame) / Float(frames)))
@@ -660,7 +731,7 @@ final class CellSceneController {
             sparks.append((spark, target))
         }
 
-        let frames = 120
+        let frames = Int(120 * Self.proteinPace)
         for frame in 1...frames {
             guard token == epoch else { return }
             let t = Float(frame) / Float(frames)
@@ -691,7 +762,8 @@ final class CellSceneController {
     private func run(
         _ steps: [(Transform, TimeInterval, AnimationTimingFunction)], on entity: Entity, token: Int
     ) async {
-        for (target, duration, timing) in steps {
+        for (target, step, timing) in steps {
+            let duration = step * Self.proteinPace
             entity.move(
                 to: target, relativeTo: cellRoot, duration: duration, timingFunction: timing)
             try? await Task.sleep(for: .milliseconds(Int(duration * 1000) + 50))
@@ -923,12 +995,12 @@ final class CellSceneController {
             // Spread evenly around the viewer, jittered so they do not read as a ring.
             let yaw = Float(index) / Float(count) * 2 * .pi + .random(in: -0.25...0.25, using: &generator)
             let pitch = Float.random(in: -0.4...0.5, using: &generator)
-            let distance = Float.random(in: 38...52, using: &generator)
+            let distance = Float.random(in: 150...220, using: &generator)
             let direction = SIMD3<Float>(cos(pitch) * sin(yaw), sin(pitch), -cos(pitch) * cos(yaw))
             let cell = template.clone(recursive: true)
             let holder = Entity()
             holder.position = direction * distance
-            holder.scale = SIMD3<Float>(repeating: .random(in: 4...7, using: &generator))
+            holder.scale = SIMD3<Float>(repeating: .random(in: 15...25, using: &generator))
             holder.orientation = simd_quatf(
                 angle: .random(in: 0...(2 * .pi), using: &generator), axis: Self.randomAxis(&generator))
             holder.addChild(cell)

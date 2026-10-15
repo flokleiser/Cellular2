@@ -23,7 +23,6 @@ final class AppModel {
     /// Organelles held by a hand right now; their info cards hide meanwhile.
     var draggingKinds: Set<OrganelleKind> = []
     var hint: String?
-    var caption: String?
     var cellScale: Float = 1
     var immersion: Float = 0
     var wantsFullImmersion = false
@@ -69,7 +68,6 @@ final class AppModel {
         openInfo = []
         draggingKinds = []
         hint = nil
-        caption = nil
         cellScale = 1
         immersion = 0
         wantsFullImmersion = false

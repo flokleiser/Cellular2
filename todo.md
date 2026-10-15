@@ -16,4 +16,4 @@ theres some changes i would like to have done. ill put it in a list here:
 can you try implementing this and ill let you know what else to change
 
 
-the new ui elements look good but there still is a disconnect at the bottom panel, where once you drag the mitochondrion, the headline of the panel is "next drag the nucleus" etc, and the text of the panel still describes the mitochondrions function.
+the new ui elements look good but there still is a disconnect at the bottom panel, where once you drag the mitochondrion, the headline of the panel is "next drag the nucleus" etc, and the text of the panel still describes the mitochondrions function. what i want is to have three vertical sections in the bottom bar, the left one telling you which organelle to drag next, the middle one being the steps where you can go back, and to the right of the steps, a panel that opens when the first step is completed etc, almost like a speech  bubble but less cartoony, that explains what happened in step 1 and so on. also please make all the animations of the proteins twice the lenght

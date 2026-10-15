@@ -9,10 +9,10 @@ struct InfoCard: View {
     let opensLeft: Bool
 
     /// Room the card can take up, in meters.
-    static let size = SIMD2<Float>(0.40, 0.30)
-    static let buttonSide: Float = 0.044
+    static let size = SIMD2<Float>(0.54, 0.42)
+    static let buttonSide: Float = 0.056
     /// Gap between the card's edge and the button.
-    static let inset: Float = 0.016
+    static let inset: Float = 0.02
 
     @Environment(\.physicalMetrics) private var metrics
 
@@ -32,7 +32,7 @@ struct InfoCard: View {
             }
             if isOpen {
                 Text(spec.role)
-                    .font(.title3)
+                    .font(.title)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .transition(.opacity)
@@ -55,7 +55,7 @@ struct InfoCard: View {
             model.toggleInfo(spec.kind)
         } label: {
             Image(systemName: isOpen ? "xmark" : "info")
-                .font(.title.weight(.semibold))
+                .font(.largeTitle.weight(.semibold))
                 .frame(width: points(Self.buttonSide), height: points(Self.buttonSide))
         }
         .buttonBorderShape(.circle)
@@ -65,7 +65,7 @@ struct InfoCard: View {
     private func title(_ isOpen: Bool) -> some View {
         if isOpen {
             Text("\(OrganelleCatalog.number(for: spec.kind))  \(spec.title)")
-                .font(.largeTitle.bold())
+                .font(.extraLargeTitle2.bold())
                 .lineLimit(2)
                 .transition(.opacity)
         }
@@ -83,7 +83,8 @@ struct LookTarget: View {
     let spec: OrganelleSpec
     /// Side of the target in meters.
     let size: Float
-    let onDrag: (SIMD3<Float>) -> Void
+    /// Translation in meters, and the pinching hand's rotation when the system reports it.
+    let onDrag: (SIMD3<Float>, simd_quatf?) -> Void
     let onDragEnded: () -> Void
 
     @Environment(\.physicalMetrics) private var metrics
@@ -125,24 +126,29 @@ struct LookTarget: View {
             .onChanged { value in
                 let moved = value.translation3D
                 // SwiftUI's y axis points down, RealityKit's up.
-                onDrag(SIMD3<Float>(
-                    Float(metrics.convert(moved.x, to: .meters)),
-                    -Float(metrics.convert(moved.y, to: .meters)),
-                    Float(metrics.convert(moved.z, to: .meters))
-                ))
+                onDrag(
+                    SIMD3<Float>(
+                        Float(metrics.convert(moved.x, to: .meters)),
+                        -Float(metrics.convert(moved.y, to: .meters)),
+                        Float(metrics.convert(moved.z, to: .meters))
+                    ),
+                    value.inputDevicePose3D.map { CellSceneController.realityRotation($0.rotation) }
+                )
             }
             .onEnded { _ in onDragEnded() }
     }
 }
 
-/// The panel below the cell. The intro card morphs into two stacked panels: what to do and what just happened on
-/// top, the numbered steps and controls below.
+/// The panel below the cell. The intro card morphs into two stacked panels: what to do on top, the numbered steps
+/// and controls below. The steps panel grows downward to describe the organelle the current step is about.
 struct JourneyPanel: View {
     let model: AppModel
     let onReset: () -> Void
     let onStep: (Int) -> Void
-    let onDebug: () -> Void
     let onExit: () -> Void
+
+    /// Reset and Exit share one width so they read as a pair.
+    private let controlWidth: CGFloat = 170
 
     private var headline: String {
         if let hint = model.hint {
@@ -166,7 +172,12 @@ struct JourneyPanel: View {
         if model.phase == .assembled {
             return "Drag with one hand to turn the cell. Pinch with both hands and pull apart to grow it. Make it big enough and you step inside."
         }
-        return model.caption
+        return nil
+    }
+
+    /// The organelle of the step in progress, described in the steps panel.
+    private var described: OrganelleSpec? {
+        model.phase == .scatter ? model.nextSpec : nil
     }
 
     private var startLabel: String {
@@ -197,6 +208,7 @@ struct JourneyPanel: View {
                 controls
                     .padding(.horizontal, 30)
                     .padding(.vertical, 20)
+                    .frame(width: 940)
                     .glassBackgroundEffect()
                     .transition(.blurReplace)
             }
@@ -234,6 +246,22 @@ struct JourneyPanel: View {
     }
 
     private var controls: some View {
+        VStack(spacing: 20) {
+            stepsRow
+            if let spec = described {
+                Text(spec.caption)
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .id(spec.kind)
+                    .transition(.blurReplace)
+            }
+        }
+        .animation(.spring(duration: 0.6), value: described?.kind)
+    }
+
+    private var stepsRow: some View {
         HStack(spacing: 18) {
             ForEach(Array(OrganelleCatalog.order.enumerated()), id: \.element.kind) { index, spec in
                 StepButton(
@@ -247,15 +275,11 @@ struct JourneyPanel: View {
             Spacer().frame(width: 16)
             Button(action: onReset) {
                 Label("Reset", systemImage: "arrow.counterclockwise")
+                    .frame(width: controlWidth)
             }
             Button(action: onExit) {
                 Label("Exit", systemImage: "xmark.circle")
-            }
-            if !model.handMenuAvailable {
-                Button(action: onDebug) {
-                    Image(systemName: "ladybug")
-                }
-                .buttonBorderShape(.circle)
+                    .frame(width: controlWidth)
             }
         }
         .font(.title2)

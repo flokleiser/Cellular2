@@ -31,6 +31,9 @@ struct OrganelleSpec {
     let proteinColor: UIColor
     let destination: ProteinDestination
     var orientation = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
+    /// Room between the organelle's bounding box and its info button, in meters. Negative pulls the button inside
+    /// the box, for models whose visible shape is much smaller than their bounds.
+    var infoGap: Float = 0.08
 }
 
 enum OrganelleCatalog {
@@ -56,7 +59,7 @@ enum OrganelleCatalog {
             title: "Nucleus",
             shortName: "nucleus",
             role: "The control centre of the cell. DNA is stored here, and the gene for our protein is copied into a messenger RNA (mRNA) strand that leaves through pores in the nuclear envelope.",
-            caption: "The nucleus copied the gene into mRNA and sent the message out to the ribosomes.",
+            caption: "The nucleus copies the gene into mRNA and sends the message out to the ribosomes.",
             slot: SIMD3<Float>(0.0, 0.7, -0.3),
             fit: 1.0,
             scatterAngle: 162,
@@ -71,7 +74,7 @@ enum OrganelleCatalog {
             title: "Ribosomes",
             shortName: "ribosomes",
             role: "Tiny protein factories. They read the mRNA message and link amino acids together, one by one, into a brand new protein chain.",
-            caption: "The ribosomes read the mRNA and built a chain of amino acids.",
+            caption: "The ribosomes read the mRNA and build a chain of amino acids.",
             slot: SIMD3<Float>(-1.7, 2.2, 0.85),
             fit: 2.0,
             scatterAngle: 90,
@@ -86,7 +89,7 @@ enum OrganelleCatalog {
             title: "Endoplasmic Reticulum",
             shortName: "endoplasmic reticulum",
             role: "A folded network of membranes. New proteins slip inside, fold into their 3D shape and are quality-checked before they move on.",
-            caption: "The endoplasmic reticulum folded the new protein into shape.",
+            caption: "The endoplasmic reticulum folds the new protein into shape.",
             // Wraps around the nucleus: the nucleus sits high up inside it, so the ER's centre is below and behind the
             // nucleus slot. Placed for a fit of 0.9; down to about 0.7 it still clears the nucleus.
             slot: SIMD3<Float>(-0.05, -0.08, -0.56),
@@ -94,7 +97,9 @@ enum OrganelleCatalog {
             scatterAngle: 306,
             scatterTilt: simd_quatf(angle: -0.5, axis: SIMD3<Float>(0, 1, 0)),
             proteinColor: UIColor(red: 0.35, green: 0.85, blue: 1.0, alpha: 1),
-            destination: .organelle(.golgi)
+            destination: .organelle(.golgi),
+            // The tubes fill only the middle of its bounding box.
+            infoGap: -0.18
         ),
         OrganelleSpec(
             kind: .golgi,
@@ -103,7 +108,7 @@ enum OrganelleCatalog {
             title: "Golgi Apparatus",
             shortName: "Golgi apparatus",
             role: "The cell's post office. It adds the finishing touches to proteins, sorts them and packs them into vesicles addressed to their destination.",
-            caption: "The Golgi apparatus packaged the protein and shipped it out of the cell.",
+            caption: "The Golgi apparatus packages the protein and ships it out of the cell.",
             slot: SIMD3<Float>(-1.8, -2.0, 1.0),
             fit: 0.85,
             scatterAngle: 234,
