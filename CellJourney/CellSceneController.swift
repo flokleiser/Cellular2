@@ -183,11 +183,10 @@ final class CellSceneController {
         cos(OrganelleCatalog.spec(for: kind).scatterAngle * .pi / 180) < -0.01
     }
 
-    /// The info card's button sits beside the organelle's resting spot; the card hangs off it so it grows outward
-    /// and down without the button moving. Pinned to the spot rather than the organelle, so grabbing or turning the
-    /// organelle never moves it. The holder faces the user, so the card's offset is in screen directions.
+    /// The info card's button sits just outside the organelle; the card hangs off it so it grows outward and down
+    /// without the button moving. The holder faces the user, so the card's offset is in screen directions.
     func mountInfoCard(_ entity: Entity, kind: OrganelleKind) {
-        guard infoButtons[kind] == nil, organelles[kind] != nil else { return }
+        guard infoButtons[kind] == nil, let wrapper = organelles[kind] else { return }
         let spec = OrganelleCatalog.spec(for: kind)
         let side: Float = Self.opensLeft(kind) ? -1 : 1
         let holder = Entity()
@@ -195,12 +194,12 @@ final class CellSceneController {
         // In front of the organelle's grab box and look target, so neither catches the taps meant for the button.
         let beside = SIMD3<Float>(side, 0, 0) * (reach(of: kind, toward: SIMD3<Float>(side, 0, 0)) + spec.infoGap)
         let ahead = SIMD3<Float>(0, 0, reach(of: kind, toward: SIMD3<Float>(0, 0, 1)) + 0.12)
-        holder.position = scatterTransform(for: spec).translation + beside + ahead
+        holder.position = spec.scatterTilt.inverse.act(beside + ahead)
         let corner = InfoCard.inset + InfoCard.buttonSide / 2
         entity.position = SIMD3<Float>(
             side * (InfoCard.size.x / 2 - corner), -(InfoCard.size.y / 2 - corner), 0)
         holder.addChild(entity)
-        scatterRoot.addChild(holder)
+        wrapper.addChild(holder)
         infoButtons[kind] = holder
     }
 

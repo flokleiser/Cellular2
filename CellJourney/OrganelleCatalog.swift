@@ -43,8 +43,10 @@ enum OrganelleCatalog {
             assetName: "Mitochondrion_New",
             title: "Mitochondrion",
             shortName: "mitochondrion",
-            role: "The powerhouse of the cell. It makes ATP, the energy that fuels every step of building, folding and moving proteins.",
-            caption: "The mitochondrion is making ATP, the energy that powers every step of the protein's journey.",
+            role:
+                "The cell’s main energy supplier. Mitochondria produce ATP (adenosine triphosphate, C₁₀H₁₆N₅O₁₃P₃), a molecule that stores usable energy. For example, ATP powers the molecular machinery that links amino acids together to build a protein.",
+            caption:
+                "The mitochondrion produces ATP, the energy that powers the protein’s journey through the cell.",
             slot: SIMD3<Float>(2.05, -1.35, 0.85),
             fit: 1.0,
             scatterAngle: 18,
@@ -58,8 +60,10 @@ enum OrganelleCatalog {
             assetName: "Nucleus",
             title: "Nucleus",
             shortName: "nucleus",
-            role: "The control centre of the cell. DNA is stored here, and the gene for our protein is copied into a messenger RNA (mRNA) strand that leaves through pores in the nuclear envelope.",
-            caption: "The nucleus copies the gene into mRNA and sends the message out to the ribosomes.",
+            role:
+                "The nucleus stores the cell’s DNA, which contains instructions for making proteins. When a protein is needed, a specific gene is transcribed into messenger RNA (mRNA). This RNA copy carries the instructions out through a nuclear pore, where ribosomes can read them to assemble amino acids into a protein.",
+            caption:
+                "The nucleus copies the gene into mRNA and sent the message out to the ribosomes.",
             slot: SIMD3<Float>(0.0, 0.7, -0.3),
             fit: 1.0,
             scatterAngle: 162,
@@ -70,11 +74,13 @@ enum OrganelleCatalog {
         OrganelleSpec(
             kind: .ribosomes,
             assetName: "Ribosomes_New2",
-//            assetName: "Ribosomes",
+            //            assetName: "Ribosomes",
             title: "Ribosomes",
             shortName: "ribosomes",
-            role: "Tiny protein factories. They read the mRNA message and link amino acids together, one by one, into a brand new protein chain.",
-            caption: "The ribosomes read the mRNA and build a chain of amino acids.",
+            role:
+                "Ribosomes are tiny protein factories found throughout the cytoplasm, either floating freely or attached to the endoplasmic reticulum (ER). They read the instructions carried by messenger RNA (mRNA) and assemble amino acids in the correct order to build a protein. When ribosomes attach to the ER, it is called the rough endoplasmic reticulum (RER). In our example, the protein is made by a ribosome attached to the RER, allowing the growing protein to enter the ER as it is produced.",
+            caption:
+                "A ribosome attached to the rough endoplasmic reticulum reads the mRNA and builds a chain of amino acids.",
             slot: SIMD3<Float>(-1.7, 2.2, 0.85),
             fit: 2.0,
             scatterAngle: 90,
@@ -84,12 +90,14 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .endoplasmicReticulum,
-//            assetName: "ER",
+            //            assetName: "ER",
             assetName: "ER_NEW/ER_New2",
             title: "Endoplasmic Reticulum",
             shortName: "endoplasmic reticulum",
-            role: "A folded network of membranes. New proteins slip inside, fold into their 3D shape and are quality-checked before they move on.",
-            caption: "The endoplasmic reticulum folds the new protein into shape.",
+            role:
+                "A folded network of membranes with two forms: the rough endoplasmic reticulum (RER), covered with ribosomes, and the smooth endoplasmic reticulum (SER), which has no attached ribosomes and helps make lipids and regulate calcium. In our example, the growing protein enters the RER, where it folds into a specific 3D structure and undergoes quality checks before moving on.",
+            caption:
+                "Inside the rough endoplasmic reticulum, the new chain of amino acids folds into the 3D structure the protein needs to function.",
             // Wraps around the nucleus: the nucleus sits high up inside it, so the ER's centre is below and behind the
             // nucleus slot. Placed for a fit of 0.9; down to about 0.7 it still clears the nucleus.
             slot: SIMD3<Float>(-0.05, -0.08, -0.56),
@@ -104,18 +112,20 @@ enum OrganelleCatalog {
         OrganelleSpec(
             kind: .golgi,
             assetName: "Golgi",
-//            assetName: "Golgi_New",
+            //            assetName: "Golgi_New",
             title: "Golgi Apparatus",
             shortName: "Golgi apparatus",
-            role: "The cell's post office. It adds the finishing touches to proteins, sorts them and packs them into vesicles addressed to their destination.",
-            caption: "The Golgi apparatus packages the protein and ships it out of the cell.",
+            role:
+                "The cell’s sorting and shipping centre. The Golgi apparatus receives proteins from the endoplasmic reticulum and sorts them according to their destination. It then packages them into membrane-bound vesicles. In our example, a vesicle carries the protein to the cell membrane, where it will be released outside the cell.",
+            caption:
+                "The Golgi apparatus packages the protein into a vesicle, which travels to the cell membrane and releases the protein outside the cell.",
             slot: SIMD3<Float>(-1.8, -2.0, 1.0),
             fit: 0.85,
             scatterAngle: 234,
             scatterTilt: simd_quatf(angle: 0.7, axis: SIMD3<Float>(0, 0, 1)),
             proteinColor: UIColor(red: 0.45, green: 1.0, blue: 0.55, alpha: 1),
             destination: .outsideCell
-        )
+        ),
     ]
 
     static func spec(for kind: OrganelleKind) -> OrganelleSpec {
