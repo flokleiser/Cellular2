@@ -93,6 +93,11 @@ final class CellSceneController {
     private var isLoaded = false
     private var panelSubscription: EventSubscription?
     private var panelHeight: Float = 0.2
+    /// Played from the cell when it comes apart, and from each organelle as it settles into the cell.
+    private var enterSound: AudioFileResource?
+    private var placedSound: AudioFileResource?
+    /// The cell is still growing out of the picture, so tapping it does nothing yet.
+    private var isPoppingOut = false
 
     func load(into content: RealityViewContent, model: AppModel) async {
         self.model = model
@@ -111,6 +116,8 @@ final class CellSceneController {
         root.addChild(scatterRoot)
         root.addChild(panelHolder)
         cellRoot.position = cellHome
+        enterSound = try? await AudioFileResource(named: "enter_cell.wav")
+        placedSound = try? await AudioFileResource(named: "organells_placed.wav")
 
         let membraneName = Self.useCustomMembrane ? "Cellmembrane" : "Cell_Membrane"
         if let membrane = await loadCentered(named: membraneName) {
@@ -255,17 +262,17 @@ final class CellSceneController {
             if entity.name == "paper" {
                 popOut(of: entity)
             }
-        } else if entity.name == "cell" {
+        } else if entity.name == "cell", !isPoppingOut {
             beginScatter()
         }
     }
 
-    /// The cell grows out of the tapped picture and floats up to its usual spot, then comes apart.
+    /// The cell grows out of the tapped picture and floats up to its usual spot, where it waits to be tapped.
     private func popOut(of paper: Entity) {
         guard let model else { return }
         epoch += 1
-        let token = epoch
         model.waitingForPaper = false
+        isPoppingOut = true
         let orientation = cellRoot.orientation
         cellRoot.transform = Transform(
             scale: SIMD3<Float>(repeating: 0.02), rotation: orientation,
@@ -277,9 +284,8 @@ final class CellSceneController {
             timingFunction: .easeOut
         )
         Task {
-            try? await Task.sleep(for: .milliseconds(2800))
-            guard token == epoch else { return }
-            beginScatter()
+            try? await Task.sleep(for: .milliseconds(1800))
+            isPoppingOut = false
         }
     }
 
@@ -547,6 +553,7 @@ final class CellSceneController {
         epoch += 1
         let token = epoch
         model.phase = .scatter
+        play(enterSound, from: cellRoot)
         // Stays grabbable so it can be turned; the tap highlight is only for the intro.
         setInteractive(membraneHolder, true, hover: false)
         scatterAll(duration: 1.6)
@@ -612,6 +619,7 @@ final class CellSceneController {
             duration: 0.6,
             timingFunction: .easeOut
         )
+        play(placedSound, from: entity)
         try? await Task.sleep(for: .milliseconds(650))
         guard token == epoch else { return }
         // One protein travels through the whole cell, so each step waits for the previous one to finish.
@@ -892,6 +900,15 @@ final class CellSceneController {
             cellRoot.orientation = simd_slerp(startOrientation, upright, eased)
             try? await Task.sleep(for: .milliseconds(16))
         }
+    }
+
+    /// Plays `sound` as spatial audio coming from `entity`, so it moves with it.
+    private func play(_ sound: AudioFileResource?, from entity: Entity) {
+        guard let sound else { return }
+        if !entity.components.has(SpatialAudioComponent.self) {
+            entity.components.set(SpatialAudioComponent())
+        }
+        entity.playAudio(sound)
     }
 
     private func setInteractive(_ entity: Entity, _ enabled: Bool, hover: Bool) {

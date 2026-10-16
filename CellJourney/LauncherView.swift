@@ -12,9 +12,9 @@ struct LauncherView: View {
                 .font(.system(size: 64))
                 .foregroundStyle(.tint)
             Text("Cell Journey")
-                .font(.extraLargeTitle)
+                .font(.app(.extraLargeTitle))
             Text("Watch how a protein is built, folded, packaged and shipped by the organelles of a cell.")
-                .font(.title3)
+                .font(.app(.title3))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             Button {
@@ -29,7 +29,7 @@ struct LauncherView: View {
                 }
             } label: {
                 Text("Enter the cell")
-                    .font(.title2)
+                    .font(.app(.title2))
                     .padding(.horizontal, 24)
                     .padding(.vertical, 6)
             }

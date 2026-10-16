@@ -2,10 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSWorldSensingUsageDescription</key>
-	<string>Find the picture in the book that the cell grows out of.</string>
 	<key>NSHandsTrackingUsageDescription</key>
 	<string>Turn your left palm towards you to open the debug menu.</string>
+	<key>NSWorldSensingUsageDescription</key>
+	<string>Find the picture in the book that the cell grows out of.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Comfortaa-VariableFont_wght.ttf</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationPreferredDefaultSceneSessionRole</key>

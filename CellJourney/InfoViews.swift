@@ -9,7 +9,7 @@ struct InfoCard: View {
     let opensLeft: Bool
 
     /// Room the card can take up, in meters.
-    static let size = SIMD2<Float>(0.54, 0.42)
+    static let size = SIMD2<Float>(0.7, 0.58)
     static let buttonSide: Float = 0.056
     /// Gap between the card's edge and the button.
     static let inset: Float = 0.02
@@ -32,7 +32,7 @@ struct InfoCard: View {
             }
             if isOpen {
                 Text(spec.role)
-                    .font(.title)
+                    .font(.app(.title))
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .transition(.opacity)
@@ -65,7 +65,7 @@ struct InfoCard: View {
     private func title(_ isOpen: Bool) -> some View {
         if isOpen {
             Text("\(OrganelleCatalog.number(for: spec.kind))  \(spec.title)")
-                .font(.extraLargeTitle2.bold())
+                .font(.app(.extraLargeTitle2).bold())
                 .lineLimit(2)
                 .transition(.opacity)
         }
@@ -104,7 +104,7 @@ struct LookTarget: View {
                 .contentShape(.rect(cornerRadius: side / 4))
                 .gesture(drag)
             Text("\(OrganelleCatalog.number(for: spec.kind))  \(spec.title)")
-                .font(.title.bold())
+                .font(.app(.title).bold())
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, 26)
@@ -220,13 +220,13 @@ struct JourneyPanel: View {
     private var intro: some View {
         VStack(spacing: 16) {
             Text("Follow a protein through the cell")
-                .font(.extraLargeTitle2.bold())
+                .font(.app(.extraLargeTitle2).bold())
                 .multilineTextAlignment(.center)
             Text("A protein is built, folded, packaged and shipped by a team of organelles. Take the cell apart, then put it back together in the right order.")
-                .font(.title3)
+                .font(.app(.title3))
                 .multilineTextAlignment(.center)
             Label(startLabel, systemImage: model.waitingForPaper ? "book" : "hand.tap")
-                .font(.title2.bold())
+                .font(.app(.title2).bold())
                 .foregroundStyle(.tint)
         }
     }
@@ -234,11 +234,11 @@ struct JourneyPanel: View {
     private var instructions: some View {
         VStack(spacing: 18) {
             Text(headline)
-                .font(.extraLargeTitle2.bold())
+                .font(.app(.extraLargeTitle2).bold())
                 .multilineTextAlignment(.center)
             if let detail {
                 Text(detail)
-                    .font(.title)
+                    .font(.app(.title))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -250,7 +250,7 @@ struct JourneyPanel: View {
             stepsRow
             if let spec = described {
                 Text(spec.caption)
-                    .font(.largeTitle)
+                    .font(.app(.largeTitle))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -282,7 +282,7 @@ struct JourneyPanel: View {
                     .frame(width: controlWidth)
             }
         }
-        .font(.title2)
+        .font(.app(.title2))
         .controlSize(.extraLarge)
     }
 }
@@ -298,7 +298,7 @@ struct StepButton: View {
     var body: some View {
         Button(action: action) {
             Text("\(number)")
-                .font(.title.bold())
+                .font(.app(.title).bold())
                 .monospacedDigit()
                 .foregroundStyle(isDone ? Color.white : isNext ? Color.primary : Color.secondary)
                 .frame(width: 60, height: 60)

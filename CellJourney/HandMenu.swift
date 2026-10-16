@@ -151,7 +151,7 @@ struct DebugPanel: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Label("Debug", systemImage: "ladybug")
-                    .font(.title3.bold())
+                    .font(.app(.title3).bold())
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark")
@@ -189,6 +189,7 @@ struct DebugPanel: View {
             .frame(maxWidth: .infinity)
         }
         .padding(24)
+        .font(.app(.body))
         .frame(width: 400)
         .fixedSize(horizontal: false, vertical: true)
         .glassBackgroundEffect()
