@@ -32,6 +32,19 @@ final class CellSceneController {
     private static let turnPerMeter: Float = 4
     /// Stretches every protein and ATP animation; 2 runs them at half speed.
     private static let proteinPace: Double = 2
+    /// The part of the cell that can be tapped and turned, as a share of its radius. Kept inside the membrane so
+    /// organelles near its edge are grabbed instead of the cell.
+    private static let membraneGrab: Float = 0.75
+    /// A held organelle brought this close to the viewer's head, in meters, is drawn to the hand from then on.
+    private static let magnetReach: Float = 0.75
+    /// The same happens when the hand itself comes this close to the head.
+    private static let handReach: Float = 0.3
+    /// How strongly a held organelle is drawn to the hand: higher catches up faster.
+    private static let magnetPull: Float = 10
+    /// Slowest hand speed, in meters per second, that counts as a throw when letting go.
+    private static let throwSpeed: Float = 0.7
+    /// How far off, in radians, a throw may aim past the edge of the cell and still go in.
+    private static let throwAim: Float = 0.35
     /// How quickly a released cell stops turning, per second. Higher stops sooner.
     private static let spinFriction: Float = 2.5
     /// Fastest a flick can set the cell turning, in radians per second.
@@ -74,7 +87,9 @@ final class CellSceneController {
     private var protein: ModelEntity?
     private var pulses: [Entity] = []
     private var proteinJob: Task<Void, Never>?
-    private var drags: [ObjectIdentifier: (position: SIMD3<Float>, pointer: SIMD3<Float>)] = [:]
+    private var holds: [OrganelleKind: Hold] = [:]
+    /// Organelles on their way from a throw, which cannot be grabbed until they land.
+    private var flying: Set<OrganelleKind> = []
     /// Held organelles turn with the hand: its rotation and the model's when the grip began, both in world space.
     private var grips: [OrganelleKind: (hand: simd_quatf, model: simd_quatf)] = [:]
     /// The model inside each organelle's wrapper, the part a hand turns.
@@ -98,6 +113,19 @@ final class CellSceneController {
     private var placedSound: AudioFileResource?
     /// The cell is still growing out of the picture, so tapping it does nothing yet.
     private var isPoppingOut = false
+    /// Where the viewer's head is, in world space, when the device reports it.
+    var viewerPosition: () -> SIMD3<Float>? = { nil }
+
+    /// An organelle in the hand. It follows the drag at a distance until it or the hand comes close to the viewer;
+    /// then it turns `magnetic` and glides towards `target` every frame, held just in front of the hand.
+    private struct Hold {
+        var start: SIMD3<Float>
+        var pointerStart: SIMD3<Float>
+        var target: SIMD3<Float>
+        var magnetic: Bool
+        var sample: (point: SIMD3<Float>, time: Date)?
+        var velocity = SIMD3<Float>.zero
+    }
 
     func load(into content: RealityViewContent, model: AppModel) async {
         self.model = model
@@ -110,6 +138,7 @@ final class CellSceneController {
                 self?.pinPanelEdge()
                 self?.driftCrowd(by: Float(event.deltaTime))
                 self?.coast(by: Float(event.deltaTime))
+                self?.glideHeld(by: Float(event.deltaTime))
             }
         }
         root.addChild(cellRoot)
@@ -137,7 +166,7 @@ final class CellSceneController {
             membraneHolder.name = "cell"
             membraneHolder.addChild(visual)
             membraneHolder.components.set(
-                CollisionComponent(shapes: [.generateSphere(radius: cellRadius)]))
+                CollisionComponent(shapes: [.generateSphere(radius: cellRadius * Self.membraneGrab)]))
             cellRoot.addChild(membraneHolder)
         }
 
@@ -294,34 +323,22 @@ final class CellSceneController {
             turnCell(value)
             return
         }
-        guard let model, model.phase == .scatter,
-            let kind = OrganelleKind(rawValue: value.entity.name),
-            !model.placedKinds.contains(kind),
-            let parent = value.entity.parent
-        else { return }
-        let entity = value.entity
-        let key = ObjectIdentifier(entity)
-        let pointer = value.convert(value.location3D, from: .local, to: parent)
-        if drags[key] == nil {
-            let origin = value.convert(value.startLocation3D, from: .local, to: parent)
-            drags[key] = (entity.position, origin)
-            startDragging(kind)
-        }
-        guard let state = drags[key] else { return }
-        entity.position = state.position + (pointer - state.pointer)
-        turnWithHand(kind, grip: value.inputDevicePose3D.map { Self.realityRotation($0.rotation) })
+        guard let kind = OrganelleKind(rawValue: value.entity.name) else { return }
+        hold(
+            kind,
+            pointer: value.convert(value.location3D, from: .local, to: .scene),
+            pointerStart: value.convert(value.startLocation3D, from: .local, to: .scene),
+            hand: value.inputDevicePose3D.map { value.convert($0.position, from: .local, to: .scene) },
+            grip: value.inputDevicePose3D.map { Self.realityRotation($0.rotation) })
     }
 
     func dragEnded(_ value: EntityTargetValue<DragGesture.Value>) {
-        drags[ObjectIdentifier(value.entity)] = nil
         if turnStart != nil {
             releaseTurn(value)
         }
         turnStart = nil
         guard let kind = OrganelleKind(rawValue: value.entity.name) else { return }
-        model?.draggingKinds.remove(kind)
-        grips[kind] = nil
-        release(kind)
+        letGo(kind)
     }
 
     /// A grabbed organelle closes its info card, which stays hidden until it is let go.
@@ -330,20 +347,83 @@ final class CellSceneController {
         model?.draggingKinds.insert(kind)
     }
 
-    /// Drag that starts on an organelle's look target. `translation` is in meters, in world space; `grip` is the
-    /// pinching hand's rotation, when the system reports it.
-    func dragOrganelle(_ kind: OrganelleKind, by translation: SIMD3<Float>, grip: simd_quatf?) {
-        guard let model, model.phase == .scatter, !model.placedKinds.contains(kind),
+    /// Drag that starts on an organelle's look target. `translation` and `hand` are in meters, in world space;
+    /// `hand` and `grip` are where the pinching hand is and how it is turned, when the system reports it.
+    func dragOrganelle(
+        _ kind: OrganelleKind, by translation: SIMD3<Float>, hand: SIMD3<Float>?, grip: simd_quatf?
+    ) {
+        hold(kind, pointer: translation, pointerStart: .zero, hand: hand, grip: grip)
+    }
+
+    /// Moves a held organelle along with the drag (`pointer` against `pointerStart`, both in world space). Once it
+    /// or the hand comes close to the viewer, it is drawn to the hand like a magnet instead, for as long as it is
+    /// held. The speed is kept for when it lets go.
+    private func hold(
+        _ kind: OrganelleKind, pointer: SIMD3<Float>, pointerStart: SIMD3<Float>, hand: SIMD3<Float>?,
+        grip: simd_quatf?
+    ) {
+        guard let model, model.phase == .scatter, !model.placedKinds.contains(kind), !flying.contains(kind),
             let entity = organelles[kind]
         else { return }
-        let key = ObjectIdentifier(entity)
-        if drags[key] == nil {
-            drags[key] = (entity.position(relativeTo: nil), .zero)
+        let viewer = viewerPosition() ?? immersiveCenter
+        // A hand reported out of arm's reach is a pose in the wrong space, so it never pulls.
+        let reachable = hand.map { simd_distance($0, viewer) < 1.2 } ?? false
+        if holds[kind] == nil {
+            let position = entity.position(relativeTo: nil)
+            holds[kind] = Hold(start: position, pointerStart: pointerStart, target: position, magnetic: false)
             startDragging(kind)
         }
-        guard let state = drags[key] else { return }
-        entity.setPosition(state.position + translation, relativeTo: nil)
+        guard var held = holds[kind] else { return }
+        var point = held.start + (pointer - pointerStart)
+        if !held.magnetic {
+            held.target = point
+            entity.setPosition(point, relativeTo: nil)
+            if let hand, reachable,
+                simd_distance(point, viewer) < Self.magnetReach || simd_distance(hand, viewer) < Self.handReach
+            {
+                held.magnetic = true
+                // The hand is somewhere else than the drag point, so its speed is measured afresh.
+                held.sample = nil
+                held.velocity = .zero
+            }
+        }
+        if held.magnetic {
+            // Keeps the last target when the hand drops out for a moment.
+            guard let hand, reachable else { return }
+            point = hand
+            held.target = hand + holdOffset(for: kind, hand: hand, viewer: viewer)
+        }
+        let now = Date()
+        if let last = held.sample {
+            let seconds = Float(now.timeIntervalSince(last.time))
+            if seconds > 0.001 {
+                // Smoothed, so one jittery hand sample does not decide the throw.
+                held.velocity += ((point - last.point) / seconds - held.velocity) * 0.5
+            }
+        }
+        held.sample = (point, now)
+        holds[kind] = held
         turnWithHand(kind, grip: grip)
+    }
+
+    /// Holds the organelle just beyond the fingertips and a little up, so the hand does not disappear inside it.
+    private func holdOffset(for kind: OrganelleKind, hand: SIMD3<Float>, viewer: SIMD3<Float>) -> SIMD3<Float> {
+        var away = hand - viewer
+        away.y = 0
+        let forward = simd_length(away) > 0.001 ? simd_normalize(away) : SIMD3<Float>(0, 0, -1)
+        let size = extents[kind] ?? SIMD3<Float>(repeating: 0.2)
+        let radius = max(size.x, max(size.y, size.z)) / 2
+        return forward * (radius + 0.04) + SIMD3<Float>(0, 0.03, 0)
+    }
+
+    /// Eases magnetic organelles towards the hand, every frame, so they keep coming while the hand is still.
+    private func glideHeld(by seconds: Float) {
+        let pull = 1 - exp(-Self.magnetPull * seconds)
+        for (kind, held) in holds where held.magnetic {
+            guard let entity = organelles[kind] else { continue }
+            let position = entity.position(relativeTo: nil)
+            entity.setPosition(position + (held.target - position) * pull, relativeTo: nil)
+        }
     }
 
     /// Turns a held organelle by however much the hand has turned since it took hold.
@@ -374,28 +454,108 @@ final class CellSceneController {
     }
 
     func dragOrganelleEnded(_ kind: OrganelleKind) {
-        guard let entity = organelles[kind] else { return }
-        drags[ObjectIdentifier(entity)] = nil
-        model?.draggingKinds.remove(kind)
-        grips[kind] = nil
-        release(kind)
+        letGo(kind)
     }
 
-    /// Drops an organelle: into the cell if it is the next one and close enough, otherwise back to its spot.
-    private func release(_ kind: OrganelleKind) {
-        guard let model, model.phase == .scatter, !model.placedKinds.contains(kind),
-            let entity = organelles[kind]
+    private func letGo(_ kind: OrganelleKind) {
+        let held = holds.removeValue(forKey: kind)
+        model?.draggingKinds.remove(kind)
+        grips[kind] = nil
+        var velocity = held?.velocity ?? .zero
+        // A hand that had come to rest before opening is putting the organelle down, not throwing it.
+        if let last = held?.sample, Date().timeIntervalSince(last.time) > 0.15 {
+            velocity = .zero
+        }
+        release(kind, velocity: velocity, wasInHand: held?.magnetic ?? false)
+    }
+
+    /// Lets go of an organelle: dropped inside the cell or thrown at it, it goes in if it is the next one and bounces
+    /// back otherwise. Anywhere else it stays where it was let go, unless it was in the hand, right by the viewer:
+    /// then it floats back to its spot.
+    private func release(_ kind: OrganelleKind, velocity: SIMD3<Float>, wasInHand: Bool) {
+        guard let model, model.phase == .scatter, !model.placedKinds.contains(kind), !flying.contains(kind),
+            let entity = organelles[kind], let next = model.nextSpec
         else { return }
-        let distance = simd_distance(
-            entity.position(relativeTo: nil), cellRoot.position(relativeTo: nil))
-        guard distance < cellRadius * model.cellScale * 0.85 else { return }
-        guard let next = model.nextSpec else { return }
-        if kind == next.kind {
-            Task { await place(kind) }
-        } else {
+        let position = entity.position(relativeTo: nil)
+        let center = cellRoot.position(relativeTo: nil)
+        let radius = cellRadius * model.cellScale
+        if simd_distance(position, center) < radius * 0.85 {
+            if kind == next.kind {
+                Task { await place(kind) }
+            } else {
+                refuse(kind, next: next)
+            }
+        } else if isThrow(velocity, from: position, at: center, radius: radius) {
+            throwIn(kind, velocity: velocity, isNext: kind == next.kind)
+        } else if wasInHand {
             sendHome(kind)
-            shake()
-            model.showHint("Not yet. The \(next.shortName) comes first.")
+        }
+    }
+
+    private func refuse(_ kind: OrganelleKind, next: OrganelleSpec) {
+        sendHome(kind)
+        shake()
+        model?.showHint("Not yet. The \(next.shortName) comes first.")
+    }
+
+    /// Fast enough, and aimed at the cell give or take `throwAim`.
+    private func isThrow(
+        _ velocity: SIMD3<Float>, from position: SIMD3<Float>, at center: SIMD3<Float>, radius: Float
+    ) -> Bool {
+        let speed = simd_length(velocity)
+        let toCell = center - position
+        let distance = simd_length(toCell)
+        guard speed >= Self.throwSpeed, distance > 0.001 else { return false }
+        let edge = asin(min(radius / distance, 1))
+        let cone = min(edge + Self.throwAim, .pi / 2.2)
+        return simd_dot(velocity / speed, toCell / distance) >= cos(cone)
+    }
+
+    /// Flies a thrown organelle off the hand along the throw and curves it into its slot, or, when it is not its
+    /// turn yet, onto the membrane, where it bounces back to its spot.
+    private func throwIn(_ kind: OrganelleKind, velocity: SIMD3<Float>, isNext: Bool) {
+        guard let model, let entity = organelles[kind], let next = model.nextSpec else { return }
+        let token = epoch
+        flying.insert(kind)
+        setInteractive(entity, false, hover: false)
+        let from = entity.position(relativeTo: nil)
+        let slot = OrganelleCatalog.spec(for: kind).slot * unit
+        // Recomputed every frame, since the cell may still be turning.
+        let landing = { [self] () -> SIMD3<Float> in
+            if isNext {
+                return cellRoot.convert(position: slot, to: nil)
+            }
+            let center = cellRoot.position(relativeTo: nil)
+            let outward = from - center
+            let direction = simd_length(outward) > 0.001 ? simd_normalize(outward) : SIMD3<Float>(0, 0, 1)
+            return center + direction * cellRadius * model.cellScale
+        }
+        let distance = simd_distance(from, landing())
+        let speed = simd_length(velocity)
+        let bend = from + velocity / speed * distance * 0.4 + SIMD3<Float>(0, 0.1, 0)
+        let duration = min(max(distance / max(speed, 1.5), 0.35), 0.9)
+        Task {
+            let frames = max(Int(duration * 60), 1)
+            for frame in 1...frames {
+                guard token == epoch else {
+                    flying.remove(kind)
+                    return
+                }
+                let t = Float(frame) / Float(frames)
+                let position = (1 - t) * (1 - t) * from + 2 * (1 - t) * t * bend + t * t * landing()
+                entity.setPosition(position, relativeTo: nil)
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+            flying.remove(kind)
+            guard token == epoch else { return }
+            if isNext {
+                await place(kind)
+            } else {
+                refuse(kind, next: next)
+                try? await Task.sleep(for: .milliseconds(750))
+                guard token == epoch else { return }
+                setInteractive(entity, true, hover: true)
+            }
         }
     }
 
@@ -511,7 +671,8 @@ final class CellSceneController {
             pulse.removeFromParent()
         }
         pulses.removeAll()
-        drags.removeAll()
+        holds.removeAll()
+        flying.removeAll()
         grips.removeAll()
         magnifyStart = nil
         turnStart = nil
@@ -695,6 +856,7 @@ final class CellSceneController {
         ]
         await run(steps, on: ball, token: token)
         if case .outsideCell = spec.destination {
+            await floatToViewer(ball, token: token)
             await fadeOutProtein(ball, token: token)
         }
     }
@@ -704,6 +866,23 @@ final class CellSceneController {
         let limit = cellRadius * 0.8
         let distance = simd_length(point)
         return distance > limit ? point / distance * limit : point
+    }
+
+    /// Once out of the cell, the protein drifts over to the viewer and stops just in front of their face.
+    private func floatToViewer(_ ball: ModelEntity, token: Int) async {
+        guard token == epoch else { return }
+        let viewer = viewerPosition() ?? immersiveCenter
+        // Out of the cell, so turning the cell no longer carries it along.
+        ball.setParent(root, preservingWorldTransform: true)
+        let from = ball.position(relativeTo: root)
+        let away = from - viewer
+        let distance = simd_length(away)
+        guard distance > 0.5 else { return }
+        var target = ball.transform
+        target.translation = viewer + away / distance * 0.45 + SIMD3<Float>(0, -0.08, 0)
+        let duration = 1.8 * Self.proteinPace
+        ball.move(to: target, relativeTo: root, duration: duration, timingFunction: .easeInOut)
+        try? await Task.sleep(for: .milliseconds(Int(duration * 1000)))
     }
 
     /// Once the protein has left the cell it fades away.

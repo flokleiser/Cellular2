@@ -16,6 +16,9 @@ struct ImmersiveView: View {
             content.add(handMenu.buttonAnchor)
             content.add(handMenu.panelAnchor)
             content.add(paper.target)
+            controller.viewerPosition = { [handMenu] in
+                handMenu.headTransform().map { SIMD3<Float>($0.columns.3.x, $0.columns.3.y, $0.columns.3.z) }
+            }
             await controller.load(into: content, model: model)
         } update: { _, attachments in
             if model.sceneReady {
@@ -75,7 +78,7 @@ struct ImmersiveView: View {
                     LookTarget(
                         spec: OrganelleCatalog.spec(for: kind),
                         size: controller.lookTargetSize(for: kind),
-                        onDrag: { controller.dragOrganelle(kind, by: $0, grip: $1) },
+                        onDrag: { controller.dragOrganelle(kind, by: $0, hand: $1, grip: $2) },
                         onDragEnded: { controller.dragOrganelleEnded(kind) }
                     )
                 }

@@ -83,8 +83,9 @@ struct LookTarget: View {
     let spec: OrganelleSpec
     /// Side of the target in meters.
     let size: Float
-    /// Translation in meters, and the pinching hand's rotation when the system reports it.
-    let onDrag: (SIMD3<Float>, simd_quatf?) -> Void
+    /// Translation in meters, and the pinching hand's position (in meters, world space) and rotation when the
+    /// system reports them.
+    let onDrag: (SIMD3<Float>, SIMD3<Float>?, simd_quatf?) -> Void
     let onDragEnded: () -> Void
 
     @Environment(\.physicalMetrics) private var metrics
@@ -124,18 +125,21 @@ struct LookTarget: View {
     private var drag: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .immersiveSpace)
             .onChanged { value in
-                let moved = value.translation3D
-                // SwiftUI's y axis points down, RealityKit's up.
                 onDrag(
-                    SIMD3<Float>(
-                        Float(metrics.convert(moved.x, to: .meters)),
-                        -Float(metrics.convert(moved.y, to: .meters)),
-                        Float(metrics.convert(moved.z, to: .meters))
-                    ),
+                    meters(value.translation3D.x, value.translation3D.y, value.translation3D.z),
+                    value.inputDevicePose3D.map { meters($0.position.x, $0.position.y, $0.position.z) },
                     value.inputDevicePose3D.map { CellSceneController.realityRotation($0.rotation) }
                 )
             }
             .onEnded { _ in onDragEnded() }
+    }
+
+    /// SwiftUI's y axis points down, RealityKit's up.
+    private func meters(_ x: Double, _ y: Double, _ z: Double) -> SIMD3<Float> {
+        SIMD3<Float>(
+            Float(metrics.convert(x, to: .meters)),
+            -Float(metrics.convert(y, to: .meters)),
+            Float(metrics.convert(z, to: .meters)))
     }
 }
 

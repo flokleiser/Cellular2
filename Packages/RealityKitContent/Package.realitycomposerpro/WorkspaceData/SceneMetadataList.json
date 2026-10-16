@@ -4,24 +4,6 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_042"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root",
-        "Icosphere_044"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root",
         "Icosphere_048"
       ],
       {
@@ -39,7 +21,7 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_045"
+        "Icosphere_043"
       ],
       {
         "isExpanded" : true,
@@ -48,7 +30,7 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_049"
+        "Icosphere_050"
       ],
       {
         "isExpanded" : true,
@@ -66,7 +48,7 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_043"
+        "BézierCurve_026"
       ],
       {
         "isExpanded" : true,
@@ -84,7 +66,7 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "BézierCurve_026"
+        "Icosphere_045"
       ],
       {
         "isExpanded" : true,
@@ -93,7 +75,25 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_050"
+        "Icosphere_044"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root",
+        "Icosphere_049"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root",
+        "Icosphere_042"
       ],
       {
         "isExpanded" : true,
@@ -105,6 +105,14 @@
     "objectMetadataList" : [
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
+        "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
         "Root",
         "Mitochondrion_New"
       ],
@@ -114,7 +122,18 @@
       },
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
-        "Root"
+        "Root",
+        "Untitled",
+        "Materials"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
+        "Root",
+        "Ribosomes_New2"
       ],
       {
         "isExpanded" : true,
@@ -133,7 +152,7 @@
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
         "Root",
-        "Untitled",
+        "Ribosomes_New2",
         "Materials"
       ],
       {
