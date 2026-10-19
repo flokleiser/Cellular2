@@ -21,9 +21,12 @@ struct LauncherView: View {
                 Task {
                     isOpening = true
                     model.prepareForEntry()
+                    SoundBoard.shared.startJourney()
                     let result = await openImmersiveSpace(id: "cell")
                     if case .opened = result {
                         dismissWindow(id: "launcher")
+                    } else {
+                        SoundBoard.shared.stopJourney()
                     }
                     isOpening = false
                 }

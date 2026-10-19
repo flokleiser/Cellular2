@@ -52,6 +52,7 @@ struct InfoCard: View {
 
     private func button(_ isOpen: Bool) -> some View {
         Button {
+            SoundBoard.shared.tap()
             model.toggleInfo(spec.kind)
         } label: {
             Image(systemName: isOpen ? "xmark" : "info")
@@ -273,15 +274,22 @@ struct JourneyPanel: View {
                     isDone: model.placedKinds.contains(spec.kind),
                     isNext: model.phase == .scatter && model.nextSpec?.kind == spec.kind
                 ) {
+                    SoundBoard.shared.tap()
                     onStep(index)
                 }
             }
             Spacer().frame(width: 16)
-            Button(action: onReset) {
+            Button {
+                SoundBoard.shared.tap()
+                onReset()
+            } label: {
                 Label("Reset", systemImage: "arrow.counterclockwise")
                     .frame(width: controlWidth)
             }
-            Button(action: onExit) {
+            Button {
+                SoundBoard.shared.tap()
+                onExit()
+            } label: {
                 Label("Exit", systemImage: "xmark.circle")
                     .frame(width: controlWidth)
             }

@@ -126,6 +126,7 @@ struct ImmersiveView: View {
             // Ending the tasks does not stop the ARKit sessions, so they are stopped here.
             paper.stop()
             handMenu.stop()
+            SoundBoard.shared.stopJourney()
             // Also when the system closed the space (Digital Crown), so reopening the app finds a window.
             openWindow(id: "launcher")
         }

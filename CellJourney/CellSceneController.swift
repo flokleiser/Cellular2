@@ -108,9 +108,12 @@ final class CellSceneController {
     private var isLoaded = false
     private var panelSubscription: EventSubscription?
     private var panelHeight: Float = 0.2
-    /// Played from the cell when it comes apart, and from each organelle as it settles into the cell.
+    /// Played from the picture when it is tapped, from the cell when it comes apart, from each organelle as it
+    /// settles into the cell, and from one that is turned away.
+    private var paperSound: AudioFileResource?
     private var enterSound: AudioFileResource?
     private var placedSound: AudioFileResource?
+    private var wrongSound: AudioFileResource?
     /// The cell is still growing out of the picture, so tapping it does nothing yet.
     private var isPoppingOut = false
     /// Where the viewer's head is, in world space, when the device reports it.
@@ -145,8 +148,10 @@ final class CellSceneController {
         root.addChild(scatterRoot)
         root.addChild(panelHolder)
         cellRoot.position = cellHome
-        enterSound = try? await AudioFileResource(named: "enter_cell.wav")
+        paperSound = try? await AudioFileResource(named: "paper_tap.wav")
+        enterSound = try? await AudioFileResource(named: "enter cell journey sound.wav")
         placedSound = try? await AudioFileResource(named: "organells_placed.wav")
+        wrongSound = try? await AudioFileResource(named: "wrong_organell.wav")
 
         let membraneName = Self.useCustomMembrane ? "Cellmembrane" : "Cell_Membrane"
         if let membrane = await loadCentered(named: membraneName) {
@@ -302,6 +307,7 @@ final class CellSceneController {
         epoch += 1
         model.waitingForPaper = false
         isPoppingOut = true
+        play(paperSound, from: paper)
         let orientation = cellRoot.orientation
         cellRoot.transform = Transform(
             scale: SIMD3<Float>(repeating: 0.02), rotation: orientation,
@@ -493,6 +499,7 @@ final class CellSceneController {
     }
 
     private func refuse(_ kind: OrganelleKind, next: OrganelleSpec) {
+        play(wrongSound, from: organelles[kind] ?? cellRoot)
         sendHome(kind)
         shake()
         model?.showHint("Not yet. The \(next.shortName) comes first.")
@@ -994,6 +1001,7 @@ final class CellSceneController {
         layoutAroundCell()
         let immersion = Self.smoothstep(3.0, 6.0, scale)
         model.immersion = immersion
+        SoundBoard.shared.setImmersion(immersion)
         sky?.isEnabled = immersion > 0.001
         sky?.components.set(OpacityComponent(opacity: immersion))
         crowdRoot.isEnabled = immersion > 0.001

@@ -194,8 +194,51 @@ def Xform "Root"
                 token cullMode = "none" (
                     allowedTokens = ["unspecified", "none", "front", "back"]
                 )
+                token inputs:frame:stPrimvarName = "st" (
+                    customData = {
+                        dictionary realitykit = {
+                            bool hide = 1
+                        }
+                    }
+                )
                 token outputs:mtlx:surface
                 token outputs:realitykit:vertex
+
+                over "PreviewSurface"
+                {
+                    float3 inputs:diffuseColor.connect = </Root/Nucleus/Materials/Material_004/diffuseColor.outputs:rgb>
+                    float inputs:roughness.connect = </Root/Nucleus/Materials/Material_004/roughness.outputs:r>
+                }
+
+                def Shader "roughness"
+                {
+                    uniform token info:id = "UsdUVTexture"
+                    asset inputs:file = @Nucleus_New/Material.004_Roughness.png@
+                    float2 inputs:st.connect = </Root/Nucleus/Materials/Material_004/roughness/TexCoordReader.outputs:result>
+                    float outputs:r
+
+                    def Shader "TexCoordReader"
+                    {
+                        uniform token info:id = "UsdPrimvarReader_float2"
+                        token inputs:varname.connect = </Root/Nucleus/Materials/Material_004.inputs:frame:stPrimvarName>
+                        float2 outputs:result
+                    }
+                }
+
+                def Shader "diffuseColor"
+                {
+                    uniform token info:id = "UsdUVTexture"
+                    asset inputs:file = @Nucleus_New/Material.004_Base_color.png@
+                    float2 inputs:st.connect = </Root/Nucleus/Materials/Material_004/diffuseColor/TexCoordReader.outputs:result>
+                    float3 outputs:rgb
+
+                    def Shader "TexCoordReader"
+                    {
+                        uniform token info:id = "UsdPrimvarReader_float2"
+                        token inputs:varname.connect = </Root/Nucleus/Materials/Material_004.inputs:frame:stPrimvarName>
+                        float2 outputs:result
+                    }
+                }
             }
 
             over "Material_027"
@@ -203,8 +246,51 @@ def Xform "Root"
                 token cullMode = "unspecified" (
                     allowedTokens = ["unspecified", "none", "front", "back"]
                 )
+                token inputs:frame:stPrimvarName = "st" (
+                    customData = {
+                        dictionary realitykit = {
+                            bool hide = 1
+                        }
+                    }
+                )
                 token outputs:mtlx:surface
                 token outputs:realitykit:vertex
+
+                over "PreviewSurface"
+                {
+                    float3 inputs:diffuseColor.connect = </Root/Nucleus/Materials/Material_027/diffuseColor.outputs:rgb>
+                    float inputs:roughness.connect = </Root/Nucleus/Materials/Material_027/roughness.outputs:r>
+                }
+
+                def Shader "roughness"
+                {
+                    uniform token info:id = "UsdUVTexture"
+                    asset inputs:file = @Nucleus_New/Material.004_Roughness.png@
+                    float2 inputs:st.connect = </Root/Nucleus/Materials/Material_027/roughness/TexCoordReader.outputs:result>
+                    float outputs:r
+
+                    def Shader "TexCoordReader"
+                    {
+                        uniform token info:id = "UsdPrimvarReader_float2"
+                        token inputs:varname.connect = </Root/Nucleus/Materials/Material_027.inputs:frame:stPrimvarName>
+                        float2 outputs:result
+                    }
+                }
+
+                def Shader "diffuseColor"
+                {
+                    uniform token info:id = "UsdUVTexture"
+                    asset inputs:file = @Nucleus_New/Material.004_Base_color.png@
+                    float2 inputs:st.connect = </Root/Nucleus/Materials/Material_027/diffuseColor/TexCoordReader.outputs:result>
+                    float3 outputs:rgb
+
+                    def Shader "TexCoordReader"
+                    {
+                        uniform token info:id = "UsdPrimvarReader_float2"
+                        token inputs:varname.connect = </Root/Nucleus/Materials/Material_027.inputs:frame:stPrimvarName>
+                        float2 outputs:result
+                    }
+                }
             }
         }
     }
