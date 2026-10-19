@@ -1197,7 +1197,7 @@ final class CellSceneController {
         var material = UnlitMaterial()
         if let image = Self.bodyImage(),
             let texture = try? TextureResource.generate(
-                from: image, options: .init(semantic: .color))
+                from: image, options: .init(semantic: .color, mipmapsMode: .allocateAndGenerateAll))
         {
             material.color = .init(tint: .white, texture: .init(texture))
         } else {
@@ -1258,10 +1258,14 @@ final class CellSceneController {
     }
 
     /// The inside of the body: deep reds, soft glowing patches, and red blood cells drifting far away.
+    /// How many pixels each point of the sky picture gets. It is drawn as 2048 × 1024 points, so 4 gives an
+    /// 8192 × 4096 texture; lower it if loading takes too long or memory runs short.
+    private static let skyDetail: CGFloat = 4
+
     private static func bodyImage() -> CGImage? {
         let size = CGSize(width: 2048, height: 1024)
         let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
+        format.scale = skyDetail
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let space = CGColorSpaceCreateDeviceRGB()
         let image = renderer.image { context in

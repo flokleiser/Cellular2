@@ -359,5 +359,38 @@ def Xform "Root"
         float3 xformOp:translate = (-20.163023, -2.3283064e-10, 56.401108)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
+
+    def "Nucleus_New_4" (
+        active = true
+        prepend references = @Nucleus_New_4.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.7071067, -0.7071068, 0, 0)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.180004, 0, 56.429943)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Ribosomes_New_2" (
+        active = true
+        prepend references = @Ribosomes_New_2.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, -3.7748954e-8, 0, 0)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.164927, 0, 56.425995)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "ER_New_2" (
+        active = true
+        prepend references = @ER_New_2.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.68388045, -0.6838805, -0.17974274, -0.17974275)
+        float3 xformOp:scale = (0.01, 0.01, 0.01)
+        float3 xformOp:translate = (-20.191631, 0, 56.414318)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
 }
 

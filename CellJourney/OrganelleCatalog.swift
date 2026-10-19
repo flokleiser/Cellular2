@@ -123,7 +123,7 @@ enum OrganelleCatalog {
             caption:
                 "The Golgi apparatus packages the protein into a vesicle, which travels to the cell membrane and releases the protein outside the cell.",
             slot: SIMD3<Float>(-1.8, -2.0, 1.0),
-            fit: 0.85,
+            fit: 0.7,
             scatterAngle: 234,
             scatterTilt: simd_quatf(angle: 0.7, axis: SIMD3<Float>(0, 0, 1)),
             proteinColor: UIColor(red: 0.45, green: 1.0, blue: 0.55, alpha: 1),
