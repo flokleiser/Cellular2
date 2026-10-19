@@ -75,13 +75,13 @@ enum BodyPainting {
         return canvas.cg.makeImage()
     }
 
-    /// Soft, even, nearly white light from all around, a little brighter above, for the cell inside the dark body.
+    /// Soft, even, nearly white light from all around for the cell inside the dark body. Almost no difference between
+    /// above and below, so glossy surfaces show no bright highlights and the cell reads matte.
     static func cellLight() -> CGImage? {
         guard let canvas = Canvas(detail: 0.125) else { return nil }
         let light = canvas.gradient([
-            (0, CGColor(red: 1, green: 1, blue: 1, alpha: 1)),
-            (0.5, CGColor(red: 0.95, green: 0.93, blue: 0.91, alpha: 1)),
-            (1, CGColor(red: 0.7, green: 0.66, blue: 0.64, alpha: 1)),
+            (0, CGColor(red: 0.95, green: 0.94, blue: 0.93, alpha: 1)),
+            (1, CGColor(red: 0.86, green: 0.84, blue: 0.83, alpha: 1)),
         ])
         canvas.cg.drawLinearGradient(light, start: .zero, end: CGPoint(x: 0, y: canvas.size.height), options: [])
         return canvas.cg.makeImage()

@@ -997,6 +997,11 @@ final class CellSceneController {
         model.immersion = immersion
         SoundBoard.shared.setImmersion(immersion)
         environment.setImmersion(immersion)
+        // The panel fades away as the body closes in around the viewer and returns when they zoom back out.
+        // Switched off once invisible, so it can't catch taps or drags meant for the cell.
+        let panelOpacity = 1 - Self.smoothstep(0.6, 0.9, immersion)
+        panelHolder.components.set(OpacityComponent(opacity: panelOpacity))
+        panelHolder.isEnabled = panelOpacity > 0.01
         // Inside the darkened body the cell gets its own bright light, so it stands out against it.
         environment.brighten([cellRoot, scatterRoot], isOn: immersion > 0.3)
         if model.wantsFullImmersion {

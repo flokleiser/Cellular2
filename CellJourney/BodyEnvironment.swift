@@ -17,7 +17,7 @@ final class BodyEnvironment {
     /// How bright the body is: 1 as painted, lower is darker. The cell is lit separately and stays bright.
     private static let dimming: CGFloat = 0.4
     /// How strongly the cell is lit while inside the body; each step of 1 doubles it.
-    private static let cellBrightness: Float = 1.2
+    private static let cellBrightness: Float = 0.6
 
     let root = Entity()
     /// The far wall. Named and grabbable like before, so dragging anywhere around the viewer turns the cell.
