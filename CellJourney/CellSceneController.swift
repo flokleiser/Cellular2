@@ -4,22 +4,6 @@ import SwiftUI
 import UIKit
 import simd
 
-private struct SeededGenerator: RandomNumberGenerator {
-    var state: UInt64
-
-    init(seed: UInt64) {
-        state = seed &+ 0x9E37_79B9_7F4A_7C15
-    }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-}
-
 @MainActor
 final class CellSceneController {
     weak var model: AppModel?
@@ -64,7 +48,6 @@ final class CellSceneController {
     /// How far back the cell moves per meter it grows. Below 1 its front creeps towards the viewer, so at full size
     /// it reaches over their head.
     private let growBack: Float = 0.95
-    private static let skyRadius: Float = 250
     private let scatterGap: Float = 0.12
 
     private let root = Entity()
@@ -73,11 +56,9 @@ final class CellSceneController {
     private let membraneHolder = Entity()
     private let panelHolder = Entity()
     private let cellDrawOrder = ModelSortGroup(depthPass: nil)
-    private var sky: ModelEntity?
-    /// Other cells drifting far off around the viewer, shown together with the sky.
-    private let crowdRoot = Entity()
-    private var crowd: [(entity: Entity, spin: simd_quatf)] = []
-    private var crowdTemplate: Entity?
+    /// The body around the viewer, shown as the cell grows around them.
+    private lazy var environment = BodyEnvironment(center: immersiveCenter)
+    private var sky: ModelEntity { environment.sky }
 
     private var organelles: [OrganelleKind: Entity] = [:]
     private var extents: [OrganelleKind: SIMD3<Float>] = [:]
@@ -145,7 +126,7 @@ final class CellSceneController {
         panelSubscription = content.subscribe(to: SceneEvents.Update.self) { [weak self] event in
             MainActor.assumeIsolated {
                 self?.pinPanelEdge()
-                self?.driftCrowd(by: Float(event.deltaTime))
+                self?.environment.update(by: Float(event.deltaTime))
                 self?.coast(by: Float(event.deltaTime))
                 self?.glideHeld(by: Float(event.deltaTime))
             }
@@ -176,7 +157,6 @@ final class CellSceneController {
             if !Self.useCustomMembrane {
                 Self.makeTransparent(visual)
             }
-            crowdTemplate = visual.clone(recursive: true)
             if Self.forceOrganellesBeforeMembrane {
                 Self.setDrawOrder(visual, group: cellDrawOrder, order: 1)
             }
@@ -213,15 +193,16 @@ final class CellSceneController {
             organelles[spec.kind] = wrapper
         }
 
-        let skyEntity = makeSky()
-        root.addChild(skyEntity)
-        sky = skyEntity
-        makeCrowd()
-        root.addChild(crowdRoot)
+        root.addChild(environment.root)
 
         layoutAroundCell()
         setInteractive(membraneHolder, true, hover: true)
         model.sceneReady = true
+        // Not needed until the cell has grown, so it is built while the journey begins.
+        let avoid = (center: cellPosition(at: Self.maxScale), radius: cellRadius * Self.maxScale + 15)
+        Task {
+            await environment.build(avoiding: avoid)
+        }
     }
 
     func mountPanel(_ entity: Entity) {
@@ -704,7 +685,7 @@ final class CellSceneController {
         model.draggingKinds = []
         model.hint = nil
         model.phase = .scatter
-        sky?.components.remove(InputTargetComponent.self)
+        sky.components.remove(InputTargetComponent.self)
         setInteractive(membraneHolder, false, hover: false)
         for kind in undone {
             if let entity = organelles[kind] {
@@ -1002,7 +983,7 @@ final class CellSceneController {
             setInteractive(entity, false, hover: false)
         }
         setInteractive(membraneHolder, true, hover: false)
-        sky?.components.set(InputTargetComponent())
+        sky.components.set(InputTargetComponent())
     }
 
     func setCellScale(_ requested: Float) {
@@ -1015,10 +996,9 @@ final class CellSceneController {
         let immersion = Self.smoothstep(3.0, 6.0, scale)
         model.immersion = immersion
         SoundBoard.shared.setImmersion(immersion)
-        sky?.isEnabled = immersion > 0.001
-        sky?.components.set(OpacityComponent(opacity: immersion))
-        crowdRoot.isEnabled = immersion > 0.001
-        crowdRoot.components.set(OpacityComponent(opacity: immersion))
+        environment.setImmersion(immersion)
+        // Inside the darkened body the cell gets its own bright light, so it stands out against it.
+        environment.brighten([cellRoot, scatterRoot], isOn: immersion > 0.3)
         if model.wantsFullImmersion {
             model.wantsFullImmersion = immersion > 0.85
         } else {
@@ -1193,150 +1173,7 @@ final class CellSceneController {
         }
     }
 
-    private func makeSky() -> ModelEntity {
-        var material = UnlitMaterial()
-        if let image = Self.bodyImage(),
-            let texture = try? TextureResource.generate(
-                from: image, options: .init(semantic: .color, mipmapsMode: .allocateAndGenerateAll))
-        {
-            material.color = .init(tint: .white, texture: .init(texture))
-        } else {
-            material.color = .init(tint: UIColor(red: 0.3, green: 0.03, blue: 0.05, alpha: 1))
-        }
-        let entity = ModelEntity(mesh: .generateSphere(radius: Self.skyRadius), materials: [material])
-        entity.name = "sky"
-        entity.scale = SIMD3<Float>(-1, 1, 1)
-        entity.position = immersiveCenter
-        entity.components.set(CollisionComponent(shapes: [.generateSphere(radius: Self.skyRadius)]))
-        entity.components.set(OpacityComponent(opacity: 0))
-        entity.isEnabled = false
-        return entity
-    }
-
-    /// Copies of the membrane scattered far away, so the viewer is one cell among many in the body.
-    private func makeCrowd() {
-        guard let template = crowdTemplate else { return }
-        var generator = SeededGenerator(seed: 11)
-        let count = 10
-        crowdRoot.position = immersiveCenter
-        crowdRoot.isEnabled = false
-        for index in 0..<count {
-            // Spread evenly around the viewer, jittered so they do not read as a ring.
-            let yaw = Float(index) / Float(count) * 2 * .pi + .random(in: -0.25...0.25, using: &generator)
-            let pitch = Float.random(in: -0.4...0.5, using: &generator)
-            let distance = Float.random(in: 150...220, using: &generator)
-            let direction = SIMD3<Float>(cos(pitch) * sin(yaw), sin(pitch), -cos(pitch) * cos(yaw))
-            let cell = template.clone(recursive: true)
-            let holder = Entity()
-            holder.position = direction * distance
-            holder.scale = SIMD3<Float>(repeating: .random(in: 15...25, using: &generator))
-            holder.orientation = simd_quatf(
-                angle: .random(in: 0...(2 * .pi), using: &generator), axis: Self.randomAxis(&generator))
-            holder.addChild(cell)
-            crowdRoot.addChild(holder)
-            let spin = simd_quatf(angle: .random(in: 0.03...0.08, using: &generator), axis: Self.randomAxis(&generator))
-            crowd.append((holder, spin))
-        }
-    }
-
-    /// Each distant cell tumbles slowly, and the whole crowd circles the viewer very slowly.
-    private func driftCrowd(by seconds: Float) {
-        guard crowdRoot.isEnabled else { return }
-        crowdRoot.orientation = simd_normalize(
-            simd_quatf(angle: 0.01 * seconds, axis: SIMD3<Float>(0, 1, 0)) * crowdRoot.orientation)
-        for (entity, spin) in crowd {
-            entity.orientation = simd_normalize(
-                simd_quatf(angle: spin.angle * seconds, axis: spin.axis) * entity.orientation)
-        }
-    }
-
-    private static func randomAxis(_ generator: inout SeededGenerator) -> SIMD3<Float> {
-        simd_normalize(SIMD3<Float>(
-            .random(in: -1...1, using: &generator),
-            .random(in: -1...1, using: &generator),
-            .random(in: -1...1, using: &generator)) + SIMD3<Float>(0, 0.001, 0))
-    }
-
     /// The inside of the body: deep reds, soft glowing patches, and red blood cells drifting far away.
-    /// How many pixels each point of the sky picture gets. It is drawn as 2048 × 1024 points, so 4 gives an
-    /// 8192 × 4096 texture; lower it if loading takes too long or memory runs short.
-    private static let skyDetail: CGFloat = 4
-
-    private static func bodyImage() -> CGImage? {
-        let size = CGSize(width: 2048, height: 1024)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = skyDetail
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        let space = CGColorSpaceCreateDeviceRGB()
-        let image = renderer.image { context in
-            let cg = context.cgContext
-            let colors =
-                [
-                    UIColor(red: 0.55, green: 0.10, blue: 0.12, alpha: 1).cgColor,
-                    UIColor(red: 0.32, green: 0.03, blue: 0.06, alpha: 1).cgColor,
-                    UIColor(red: 0.12, green: 0.01, blue: 0.03, alpha: 1).cgColor,
-                ] as CFArray
-            if let gradient = CGGradient(colorsSpace: space, colors: colors, locations: [0, 0.5, 1]) {
-                cg.drawLinearGradient(
-                    gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
-            }
-            var generator = SeededGenerator(seed: 7)
-            // The image wraps around the sphere, so anything crossing the left or right edge is drawn again on the
-            // other side; otherwise it is cut off there and leaves a visible seam.
-            func wrapped(_ x: CGFloat, reach: CGFloat, draw: (CGFloat) -> Void) {
-                draw(x)
-                if x - reach < 0 { draw(x + size.width) }
-                if x + reach > size.width { draw(x - size.width) }
-            }
-            // Soft light and shadow in the tissue.
-            for _ in 0..<60 {
-                let radius = CGFloat.random(in: 60...220, using: &generator)
-                let center = CGPoint(
-                    x: .random(in: 0...size.width, using: &generator),
-                    y: .random(in: 0...size.height, using: &generator))
-                let light = Bool.random(using: &generator)
-                let tone = light
-                    ? UIColor(red: 0.95, green: 0.35, blue: 0.35, alpha: .random(in: 0.06...0.16, using: &generator))
-                    : UIColor(red: 0.08, green: 0.0, blue: 0.02, alpha: .random(in: 0.15...0.3, using: &generator))
-                let glow = [tone.cgColor, tone.withAlphaComponent(0).cgColor] as CFArray
-                if let gradient = CGGradient(colorsSpace: space, colors: glow, locations: [0, 1]) {
-                    wrapped(center.x, reach: radius) { x in
-                        let spot = CGPoint(x: x, y: center.y)
-                        cg.drawRadialGradient(
-                            gradient, startCenter: spot, startRadius: 0, endCenter: spot, endRadius: radius,
-                            options: [])
-                    }
-                }
-            }
-            // Red blood cells: discs with a darker dimple, blurred by distance.
-            for _ in 0..<160 {
-                let radius = CGFloat.random(in: 5...18, using: &generator)
-                let center = CGPoint(
-                    x: .random(in: 0...size.width, using: &generator),
-                    y: .random(in: size.height * 0.15...size.height * 0.85, using: &generator))
-                let alpha = CGFloat.random(in: 0.25...0.6, using: &generator)
-                let squash = CGFloat.random(in: 0.45...1, using: &generator)
-                let rim = UIColor(red: 0.85, green: 0.12, blue: 0.14, alpha: alpha)
-                let dimple = UIColor(red: 0.45, green: 0.04, blue: 0.07, alpha: alpha)
-                let disc = [dimple.cgColor, rim.cgColor, rim.withAlphaComponent(0).cgColor] as CFArray
-                let angle = CGFloat.random(in: 0...(.pi), using: &generator)
-                guard let gradient = CGGradient(colorsSpace: space, colors: disc, locations: [0, 0.65, 1])
-                else { continue }
-                wrapped(center.x, reach: radius) { x in
-                    cg.saveGState()
-                    cg.translateBy(x: x, y: center.y)
-                    cg.rotate(by: angle)
-                    cg.scaleBy(x: 1, y: squash)
-                    cg.drawRadialGradient(
-                        gradient, startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: radius,
-                        options: [])
-                    cg.restoreGState()
-                }
-            }
-        }
-        return image.cgImage
-    }
-
     private static func smoothstep(_ a: Float, _ b: Float, _ x: Float) -> Float {
         let t = min(max((x - a) / (b - a), 0), 1)
         return t * t * (3 - 2 * t)
