@@ -106,6 +106,9 @@ final class CellSceneController {
     private var unit: Float = 0.1
     private var cellRadius: Float = 0.675
     private var isLoaded = false
+    /// The Reality Composer Pro scene that holds every model with the materials set up there.
+    private static let sceneName = "CellOverview"
+    private var scene: Entity?
     private var panelSubscription: EventSubscription?
     private var panelHeight: Float = 0.2
     /// Played from the picture when it is tapped, from the cell when it comes apart, from each organelle as it
@@ -152,6 +155,11 @@ final class CellSceneController {
         root.addChild(panelHolder)
         root.addChild(paperSpeaker)
         cellRoot.position = cellHome
+        do {
+            scene = try await Entity(named: Self.sceneName, in: realityKitContentBundle)
+        } catch {
+            print("Could not load \(Self.sceneName), using the bare models: \(error)")
+        }
         paperSound = try? await AudioFileResource(named: "paper_tap.wav")
         enterSound = try? await AudioFileResource(named: "enter cell journey sound.wav")
         placedSound = try? await AudioFileResource(named: "organells_placed.wav")
@@ -1116,10 +1124,23 @@ final class CellSceneController {
         }
     }
 
+    /// A copy of the model as it sits in the Reality Composer Pro scene, so it keeps the materials applied there.
+    /// Its place in the scene is dropped. Models that aren't in the scene are loaded from their own file.
+    private func model(named name: String) async throws -> Entity {
+        let primName = name.split(separator: "/").last.map(String.init) ?? name
+        let sceneRoot = scene?.findEntity(named: "Root") ?? scene
+        if let found = sceneRoot?.children.first(where: { $0.name == primName }) {
+            let copy = found.clone(recursive: true)
+            copy.transform = .identity
+            return copy
+        }
+        return try await Entity(named: name, in: realityKitContentBundle)
+    }
+
     private func loadCentered(named name: String) async -> (entity: Entity, extents: SIMD3<Float>)?
     {
         do {
-            let loaded = try await Entity(named: name, in: realityKitContentBundle)
+            let loaded = try await model(named: name)
             let holder = Entity()
             holder.addChild(loaded)
             let bounds = holder.visualBounds(relativeTo: holder)

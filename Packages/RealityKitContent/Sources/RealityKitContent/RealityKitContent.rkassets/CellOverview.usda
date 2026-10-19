@@ -155,6 +155,7 @@ def Xform "Root"
 
                 over "PreviewSurface"
                 {
+                    float3 inputs:diffuseColor.connect = </Root/Ribosomes_New2/Materials/Material_015/diffuseColor.outputs:rgb>
                     float inputs:roughness.connect = </Root/Ribosomes_New2/Materials/Material_015/roughness.outputs:r>
                 }
 
@@ -164,6 +165,21 @@ def Xform "Root"
                     asset inputs:file = @mito_texture/Material.008_roughness.jpg@
                     float2 inputs:st.connect = </Root/Ribosomes_New2/Materials/Material_015/roughness/TexCoordReader.outputs:result>
                     float outputs:r
+
+                    def Shader "TexCoordReader"
+                    {
+                        uniform token info:id = "UsdPrimvarReader_float2"
+                        token inputs:varname.connect = </Root/Ribosomes_New2/Materials/Material_015.inputs:frame:stPrimvarName>
+                        float2 outputs:result
+                    }
+                }
+
+                def Shader "diffuseColor"
+                {
+                    uniform token info:id = "UsdUVTexture"
+                    asset inputs:file = @Ribosome_New2/Material.015_baseColor.png@
+                    float2 inputs:st.connect = </Root/Ribosomes_New2/Materials/Material_015/diffuseColor/TexCoordReader.outputs:result>
+                    float3 outputs:rgb
 
                     def Shader "TexCoordReader"
                     {
@@ -321,6 +337,27 @@ def Xform "Root"
             float inputs:opacity = 0.5944531
             token outputs:surface
         }
+    }
+
+    def "golgi_apparat_2" (
+        active = true
+        prepend references = @golgi_apparat_2.usdc@
+    )
+    {
+        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:translate = (-20.167582, 0, 56.397644)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Golgi_New_2" (
+        active = true
+        prepend references = @Golgi_New_2.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.70710677, -0.70710677, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:translate = (-20.163023, -2.3283064e-10, 56.401108)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 }
 

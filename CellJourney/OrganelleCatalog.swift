@@ -57,7 +57,8 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .nucleus,
-            assetName: "Nucleus",
+//            assetName: "Nucleus",
+            assetName: "Nucleus_New_4",
             title: "Nucleus",
             shortName: "nucleus",
             role:
@@ -73,7 +74,7 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .ribosomes,
-            assetName: "Ribosomes_New2",
+            assetName: "Ribosomes_New_2",
             //            assetName: "Ribosomes",
             title: "Ribosomes",
             shortName: "ribosomes",
@@ -91,7 +92,8 @@ enum OrganelleCatalog {
         OrganelleSpec(
             kind: .endoplasmicReticulum,
             //            assetName: "ER",
-            assetName: "ER_NEW/ER_New2",
+//            assetName: "ER_NEW/ER_New2",
+            assetName: "ER_New_2",
             title: "Endoplasmic Reticulum",
             shortName: "endoplasmic reticulum",
             role:
@@ -111,7 +113,8 @@ enum OrganelleCatalog {
         ),
         OrganelleSpec(
             kind: .golgi,
-            assetName: "Golgi",
+//            assetName: "Golgi",
+            assetName: "Golgi_New_2",
             //            assetName: "Golgi_New",
             title: "Golgi Apparatus",
             shortName: "Golgi apparatus",

@@ -4,34 +4,33 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_050"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root",
-        "Icosphere_043"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root",
-        "Icosphere_051"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root",
         "Icosphere_045"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root",
+        "Icosphere_042"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root",
+        "Icosphere_052"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root"
       ],
       {
         "isExpanded" : true,
@@ -58,7 +57,7 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "BézierCurve_026"
+        "Icosphere_051"
       ],
       {
         "isExpanded" : true,
@@ -67,7 +66,25 @@
       [
         "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
         "root",
-        "Icosphere_042"
+        "Icosphere_050"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root",
+        "Icosphere_043"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
+        "root",
+        "BézierCurve_026"
       ],
       {
         "isExpanded" : true,
@@ -81,23 +98,6 @@
       {
         "isExpanded" : true,
         "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "158F91B3-E38F-4B9F-9911-DE2DD2261E4B",
-        "root",
-        "Icosphere_052"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
       }
     ]
   },
@@ -106,7 +106,25 @@
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
         "Root",
-        "Mitochondrion_New"
+        "Ribosomes_New2",
+        "Materials"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
+        "Root",
+        "Nucleus"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
+        "Root"
       ],
       {
         "isExpanded" : true,
@@ -116,26 +134,6 @@
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
         "Root",
         "Ribosomes_New2"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
-        "Root",
-        "Mitochondrion_New",
-        "Materials"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
-        "Root",
-        "Untitled",
-        "Materials"
       ],
       {
         "isExpanded" : true,
@@ -154,7 +152,7 @@
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
         "Root",
-        "Nucleus"
+        "Mitochondrion_New"
       ],
       {
         "isExpanded" : true,
@@ -163,7 +161,7 @@
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
         "Root",
-        "Ribosomes_New2",
+        "Untitled",
         "Materials"
       ],
       {
@@ -172,7 +170,9 @@
       },
       [
         "D0616AF4-E3BA-4744-B3A4-FF636CC440F4",
-        "Root"
+        "Root",
+        "Mitochondrion_New",
+        "Materials"
       ],
       {
         "isExpanded" : true,
