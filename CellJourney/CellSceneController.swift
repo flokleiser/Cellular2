@@ -111,6 +111,9 @@ final class CellSceneController {
     /// Played from the picture when it is tapped, from the cell when it comes apart, from each organelle as it
     /// settles into the cell, and from one that is turned away.
     private var paperSound: AudioFileResource?
+    /// Plays the paper sound where the picture was. The picture's own tap target is switched off as soon as it is
+    /// tapped, which would cut the sound off.
+    private let paperSpeaker = Entity()
     private var enterSound: AudioFileResource?
     private var placedSound: AudioFileResource?
     private var wrongSound: AudioFileResource?
@@ -147,6 +150,7 @@ final class CellSceneController {
         root.addChild(cellRoot)
         root.addChild(scatterRoot)
         root.addChild(panelHolder)
+        root.addChild(paperSpeaker)
         cellRoot.position = cellHome
         paperSound = try? await AudioFileResource(named: "paper_tap.wav")
         enterSound = try? await AudioFileResource(named: "enter cell journey sound.wav")
@@ -307,7 +311,8 @@ final class CellSceneController {
         epoch += 1
         model.waitingForPaper = false
         isPoppingOut = true
-        play(paperSound, from: paper)
+        paperSpeaker.setPosition(paper.position(relativeTo: nil), relativeTo: nil)
+        play(paperSound, from: paperSpeaker)
         let orientation = cellRoot.orientation
         cellRoot.transform = Transform(
             scale: SIMD3<Float>(repeating: 0.02), rotation: orientation,

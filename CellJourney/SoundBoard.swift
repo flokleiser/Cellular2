@@ -6,8 +6,8 @@ import AVFoundation
 final class SoundBoard {
     static let shared = SoundBoard()
 
-    private static let baseVolume: Float = 0.5
-    private static let ambianceVolume: Float = 0.8
+    private static let baseVolume: Float = 0.18
+    private static let ambianceVolume: Float = 0.7
     private static let tapVolume: Float = 0.7
 
     private let base = SoundBoard.player("base_sound.wav", loops: true)
@@ -51,7 +51,8 @@ final class SoundBoard {
 
     private static func player(_ name: String, loops: Bool) -> AVAudioPlayer? {
         guard let url = Bundle.main.url(forResource: name, withExtension: nil),
-              let player = try? AVAudioPlayer(contentsOf: url) else {
+            let player = try? AVAudioPlayer(contentsOf: url)
+        else {
             print("[Sound] missing \(name)")
             return nil
         }
